@@ -123,6 +123,9 @@ const loyaltyPointsSchema = new Schema({
   userId: String,
   points: String,
 });
+const reservedUsernamesSchema = new Schema({
+  username: { type: String, required: true, trim: true },
+});
 transactionSchema.index({ userId: 1 });
 loyaltyPointsSchema.index({ userId: 1 });
 
@@ -140,6 +143,10 @@ function authenticateToken(token) {
   }
 }
 
+const ReservedUsernames = mongoose.model(
+  "reservedUsernames",
+  reservedUsernamesSchema
+);
 const UserAccount = mongoose.model("userAccount", userAccountSchema);
 const Transaction = mongoose.model("transaction", transactionSchema);
 const LoyaltyPoints = mongoose.model("loyaltyPoints", loyaltyPointsSchema);
@@ -149,5 +156,6 @@ module.exports = {
   UserAccount,
   Transaction,
   LoyaltyPoints,
+  ReservedUsernames,
   authenticateToken,
 };

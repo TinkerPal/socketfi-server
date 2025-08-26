@@ -51,6 +51,7 @@ const { encodeData, processArgs, toBaseUnits } = require("./soroban/utils");
 const { findSwapPathAqua } = require("./configs/aqua-config");
 const { findSwapPathSoroswap } = require("./configs/soroswap-config");
 const { bestUsdQuote } = require("./soroban/price-computation");
+const { isReservedUsername } = require("./models/reserved_usernames");
 const sameSiteConfig = process.env.MODE === "PRODUCTION" ? "none" : "none";
 
 const port = process.env.PORT || 3000;
@@ -101,6 +102,14 @@ app.get("/auth/get-account", async (req, res) => {
       .json({ error: "Username must be at least 6 characters" });
   }
 
+  if (isReservedUsername(username)) {
+    res.json({
+      description:
+        "That username isn’t available. Please choose a different username.",
+      isReserveed: true,
+    });
+  }
+
   const user = await getUserByUsername(username);
 
   if (user) {
@@ -125,6 +134,15 @@ app.post("/init-auth", async (req, res) => {
     return res
       .status(400)
       .json({ error: "username and platform are required" });
+  }
+
+  if (isReservedUsername(username)) {
+    return res.status(409).json({
+      ok: false,
+      code: "USERNAME_UNAVAILABLE",
+      error:
+        "That username isn’t available. Please choose a different username.",
+    });
   }
 
   const user = await getUserByUsername(username);
@@ -192,6 +210,15 @@ app.post("/verify-auth", async (req, res) => {
 
     if (!authInfo) {
       return res.status(400).json({ error: "Auth info not found" });
+    }
+
+    if (isReservedUsername(authInfo.username)) {
+      return res.status(409).json({
+        ok: false,
+        code: "USERNAME_UNAVAILABLE",
+        error:
+          "That username isn’t available. Please choose a different username.",
+      });
     }
 
     const user = await getUserByUsername(authInfo.username);
