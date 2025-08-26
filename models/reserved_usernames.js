@@ -307,7 +307,6 @@ const RESERVED_USERNAMES = [
   "nomad",
   "li.fi",
   "lifinance",
-  "socket",
   "socketfi",
 
   // nft / identity / social
