@@ -106,7 +106,7 @@ app.get("/auth/get-account", async (req, res) => {
     res.json({
       description:
         "That username isn’t available. Please choose a different username.",
-      isReserveed: true,
+      isReserved: true,
     });
   }
 
