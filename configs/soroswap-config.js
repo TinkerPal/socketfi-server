@@ -1,13 +1,12 @@
-require("dotenv").config({ quiet: true });
-
-const BigNumber = require("bignumber.js");
+import "dotenv/config"; // loads .env automatically
+import BigNumber from "bignumber.js";
 import { SoroswapSDK, SupportedProtocols, TradeType } from "@soroswap/sdk";
 
 const soroswapClient = new SoroswapSDK({
   apiKey: process.env.SOROSWAP_API_KEY,
 });
 
-async function getQuote(tokenIn, tokenOut, amount) {
+export async function getQuote(tokenIn, tokenOut, amount) {
   const stroops = new BigNumber(amount).multipliedBy(1e7).integerValue();
   const amountIn = BigInt(stroops.toFixed(0));
 
@@ -22,8 +21,6 @@ async function getQuote(tokenIn, tokenOut, amount) {
   return quote;
 }
 
-async function findSwapPathSoroswap(tokenIn, tokenOut, amountIn) {
+export async function findSwapPathSoroswap(tokenIn, tokenOut, amountIn) {
   return [tokenIn, tokenOut];
 }
-
-module.exports = { findSwapPathSoroswap, getQuote };
