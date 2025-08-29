@@ -1204,18 +1204,17 @@ app.post("/any-invoke-with-sig", async (req, res) => {
 });
 
 app.post("/aqua-swap-with-sig", async (req, res) => {
+  const {
+    contractId,
+    network,
+    callFunction,
+    sigData,
+    txDetails = null,
+    tokenIn,
+    tokenOut,
+    sId = "",
+  } = req.body;
   try {
-    const {
-      contractId,
-      network,
-      callFunction,
-      sigData,
-      txDetails = null,
-      tokenIn,
-      tokenOut,
-      sId = "",
-    } = req.body;
-
     if (!network || !contractId || !callFunction || !sigData) {
       progress.push(sId, {
         step: "user authentication",
@@ -1483,19 +1482,18 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
 });
 
 app.post("/soroswap-swap-with-sig", async (req, res) => {
+  const {
+    contractId,
+    network,
+    callFunction,
+    sigData,
+    txDetails = null,
+    tokenIn,
+    tokenOut,
+    swapData = null,
+    sId = "",
+  } = req.body;
   try {
-    const {
-      contractId,
-      network,
-      callFunction,
-      sigData,
-      txDetails = null,
-      tokenIn,
-      tokenOut,
-      swapData = null,
-      sId = "",
-    } = req.body;
-
     if (!network || !contractId || !callFunction || !sigData) {
       progress.push(sId, {
         step: "user authentication",
