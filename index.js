@@ -1774,7 +1774,7 @@ app.post("/get-quote", async (req, res) => {
         .json({ error: "No user found or user not authorized" });
     }
 
-    const quote = await getQuote(tokenIn, tokenOut, amount);
+    const quote = await getQuote(protocol, tokenIn, tokenOut, amount);
 
     const data = { ...quote?.rawTrade, amountOut: quote?.amountOut };
     res.status(200).json({
