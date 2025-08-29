@@ -1751,27 +1751,10 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
 
 app.post("/get-quote", async (req, res) => {
   try {
-    const authHeader = req.headers["authorization"];
     const { protocol, tokenIn, tokenOut, amount } = req.body;
 
     if (!protocol || !tokenIn || !tokenOut || !amount) {
       return res.status(400).json({ error: "Incomplete Request Body" });
-    }
-
-    if (!authHeader) {
-      return res.status(401).json({ error: "Authorization header is missing" });
-    }
-
-    const accessToken = authHeader.split(" ")[1];
-
-    const accessVerification = authenticateToken(accessToken);
-
-    const user = await getUserByUsername(accessVerification.username);
-
-    if (!user) {
-      return res
-        .status(400)
-        .json({ error: "No user found or user not authorized" });
     }
 
     const quote = await getQuote(protocol, tokenIn, tokenOut, amount);
@@ -1781,8 +1764,6 @@ app.post("/get-quote", async (req, res) => {
       message: "quote fetched successfully",
       data,
     });
-
-    console.log("the data is", data);
   } catch (error) {
     console.error(
       "Error:",
