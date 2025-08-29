@@ -1,6 +1,5 @@
 require("dotenv").config({ quiet: true });
-import { SoroswapSDK, SupportedProtocols, TradeType } from "@soroswap/sdk";
-const BigNumber = require("bignumber.js");
+
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
@@ -51,7 +50,7 @@ const { progress } = require("./tracker/progress");
 const contracts = require("./soroban/contracts");
 const { encodeData, processArgs, toBaseUnits } = require("./soroban/utils");
 const { findSwapPathAqua } = require("./configs/aqua-config");
-const { findSwapPathSoroswap } = require("./configs/soroswap-config");
+const { findSwapPathSoroswap, getQuote } = require("./configs/soroswap-config");
 const { bestUsdQuote } = require("./soroban/price-computation");
 const { isReservedUsername } = require("./models/reserved_usernames");
 const sameSiteConfig = process.env.MODE === "PRODUCTION" ? "none" : "none";
@@ -1775,20 +1774,7 @@ app.post("/get-quote", async (req, res) => {
         .json({ error: "No user found or user not authorized" });
     }
 
-    const soroswapClient = new SoroswapSDK({
-      apiKey: process.env.SOROSWAP_API_KEY,
-    });
-
-    const stroops = new BigNumber(amount).multipliedBy(1e7).integerValue();
-    const amountIn = BigInt(stroops.toFixed(0));
-
-    const quote = await soroswapClient.quote({
-      assetIn: tokenIn,
-      assetOut: tokenOut,
-      amount: amountIn,
-      tradeType: TradeType.EXACT_IN,
-      protocols: [SupportedProtocols?.[protocol]],
-    });
+    const quote = await getQuote(tokenIn, tokenOut, amount);
 
     const data = { ...quote?.rawTrade, amountOut: quote?.amountOut };
     res.status(200).json({
