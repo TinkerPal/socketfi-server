@@ -1599,11 +1599,12 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         detail: "Fetching Swap Path",
       });
 
-      const swapPath = await findSwapPathSoroswap(
-        tokenIn?.contract,
-        tokenOut?.contract,
-        amount.toString()
-      );
+      // const swapPath = await findSwapPathSoroswap(
+      //   tokenIn?.contract,
+      //   tokenOut?.contract,
+      //   amount.toString()
+      // );
+      console.log("fine here 3");
 
       const tokenInScVal = StellarSdk.Address.contract(
         StrKey.decodeContract(tokenIn.contract)
@@ -1621,6 +1622,8 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         Number(swapData?.amountOutMin).toFixed()
       ).toI128();
 
+      console.log("fine here 4");
+
       const argsObj = {
         arg1: amountI128,
         arg2: amountMinI128,
@@ -1629,10 +1632,11 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         arg5: nativeToScVal(BigInt("17568169065194979733"), { type: "u64" }),
       };
 
+      console.log("fine here 5");
       const pair = await contractGet(
         internalSigner.publicKey(),
         network,
-        contractId,
+        contracts.PUBLIC.SOROSWAP,
         "router_pair_for",
         [
           { value: swapData?.pair[0], type: "scSpecTypeAddress" },
