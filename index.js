@@ -1596,7 +1596,7 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
-        detail: "Fetching Swap Path",
+        detail: "Fetching Pair Router",
       });
 
       // const swapPath = await findSwapPathSoroswap(
@@ -1640,11 +1640,7 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         ]
       );
 
-      const pairAddress = pair?.results[0]?.returnValueJson;
-
-      console.log("the pair is", pairAddress);
-
-      return;
+      const pairAddress = pair?.results[0]?.returnValueJson?.address;
 
       const authObj = {
         contract: tokenInScVal,
@@ -1655,12 +1651,9 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
           nativeToScVal(contractId, {
             type: "address",
           }),
-          nativeToScVal(
-            "CAM7DY53G63XA4AJRS24Z6VFYAFSSF76C3RZ45BE5YU3FQS5255OOABP",
-            {
-              type: "address",
-            }
-          ),
+          nativeToScVal(pairAddress, {
+            type: "address",
+          }),
           nativeToScVal(amount.toString(), { type: "i128" }),
         ]),
       };
