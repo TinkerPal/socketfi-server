@@ -1582,7 +1582,7 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         user.userId !== signInfo.userId ||
         !dataValid
       ) {
-        console.log("the swap data are", swapData);
+        console.log(" swap data are", swapData);
 
         return;
         progress.push(sId, {
