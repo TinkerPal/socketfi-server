@@ -260,39 +260,35 @@ async function contractGet(pubKey, network, contractId, operation, args) {
 }
 
 async function invokeContractScVal(network, contractId, operation, invokeArgs) {
-  try {
-    const memo = "";
-    const server = RpcServer(network, "json");
-    const contract = new Contract(contractId);
-    const source = await server.getAccount(internalSigner.publicKey());
+  const memo = "";
+  const server = RpcServer(network, "json");
+  const contract = new Contract(contractId);
+  const source = await server.getAccount(internalSigner.publicKey());
 
-    const txBuilderAny = new TransactionBuilder(source, {
-      fee: BASE_FEE,
-      networkPassphrase: Networks[network],
-    })
-      .setTimeout(TimeoutInfinite)
-      .addOperation(contract.call(operation, ...invokeArgs));
+  const txBuilderAny = new TransactionBuilder(source, {
+    fee: BASE_FEE,
+    networkPassphrase: Networks[network],
+  })
+    .setTimeout(TimeoutInfinite)
+    .addOperation(contract.call(operation, ...invokeArgs));
 
-    if (memo?.length > 0) {
-      txBuilderAny.addMemo(Memo.text(memo));
-    }
-
-    const builtTx = txBuilderAny.build().toXDR();
-
-    const prepareTx = await server.prepareTransaction(builtTx);
-
-    const txSign = TransactionBuilder.fromXDR(prepareTx, Networks[network]);
-
-    txSign.sign(internalSigner);
-
-    const signedTx = txSign.toXDR();
-
-    const res = await server.sendTransaction(signedTx);
-
-    return res;
-  } catch (e) {
-    console.log(e.message);
+  if (memo?.length > 0) {
+    txBuilderAny.addMemo(Memo.text(memo));
   }
+
+  const builtTx = txBuilderAny.build().toXDR();
+
+  const prepareTx = await server.prepareTransaction(builtTx);
+
+  const txSign = TransactionBuilder.fromXDR(prepareTx, Networks[network]);
+
+  txSign.sign(internalSigner);
+
+  const signedTx = txSign.toXDR();
+
+  const res = await server.sendTransaction(signedTx);
+
+  return res;
 }
 
 module.exports = {
