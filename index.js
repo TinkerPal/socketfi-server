@@ -1467,6 +1467,11 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
       }
     }
   } catch (error) {
+    progress.push(sId, {
+      step: "aqua amm transaction",
+      status: "error",
+      detail: error.response ? error.response.data : error.message,
+    });
     console.error(
       "Error:",
       error.response ? error.response.data : error.message
@@ -1750,6 +1755,11 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
       }
     }
   } catch (error) {
+    progress.push(sId, {
+      step: "soroswap transaction",
+      status: "error",
+      detail: error.response ? error.response.data : error.message,
+    });
     console.error(
       "Error:",
       error.response ? error.response.data : error.message
