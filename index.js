@@ -1584,7 +1584,6 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
       ) {
         console.log(" swap data are", swapData);
 
-        return;
         progress.push(sId, {
           step: "transaction authentication",
           status: "error",
@@ -1594,6 +1593,8 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
           .status(400)
           .json({ error: "Something wrong with signed transaction" });
       }
+
+      return;
 
       const amount = toBaseUnits(tokenIn?.amount, Number(tokenIn?.decimals));
       progress.push(sId, {
