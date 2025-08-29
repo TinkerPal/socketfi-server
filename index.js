@@ -1491,6 +1491,8 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
       sId = "",
     } = req.body;
 
+    console.log(" swap data are", swapData);
+    return;
     if (!network || !contractId || !callFunction || !sigData) {
       progress.push(sId, {
         step: "user authentication",
