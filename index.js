@@ -1640,6 +1640,8 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         ]
       );
 
+      const pairAddress = pair?.results[0]?.returnValueJson;
+
       console.log("the pair is", pair);
 
       return;
