@@ -1487,6 +1487,7 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
       txDetails = null,
       tokenIn,
       tokenOut,
+      swapData = null,
       sId = "",
     } = req.body;
 
@@ -1581,6 +1582,9 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         user.userId !== signInfo.userId ||
         !dataValid
       ) {
+        console.log("the swap data are", swapData);
+
+        return;
         progress.push(sId, {
           step: "transaction authentication",
           status: "error",
