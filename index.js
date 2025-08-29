@@ -1,4 +1,6 @@
 require("dotenv").config({ quiet: true });
+import { SoroswapSDK, SupportedProtocols, TradeType } from "@soroswap/sdk";
+const BigNumber = require("bignumber.js");
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
@@ -1745,6 +1747,61 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
     return res.status(400).json({
       error: error.response ? error.response.data : error.message,
     });
+  }
+});
+
+app.post("/get-quote", async (req, res) => {
+  try {
+    const authHeader = req.headers["authorization"];
+    const { protocol, tokenIn, tokenOut, amount } = req.body;
+
+    if (!protocol || !tokenIn || !tokenOut || !amount) {
+      return res.status(400).json({ error: "Incomplete Request Body" });
+    }
+
+    if (!authHeader) {
+      return res.status(401).json({ error: "Authorization header is missing" });
+    }
+
+    const accessToken = authHeader.split(" ")[1];
+
+    const accessVerification = authenticateToken(accessToken);
+
+    const user = await getUserByUsername(accessVerification.username);
+
+    if (!user) {
+      return res
+        .status(400)
+        .json({ error: "No user found or user not authorized" });
+    }
+
+    const soroswapClient = new SoroswapSDK({
+      apiKey: process.env.SOROSWAP_API_KEY,
+    });
+
+    const stroops = new BigNumber(amount).multipliedBy(1e7).integerValue();
+    const amountIn = BigInt(stroops.toFixed(0));
+
+    const quote = await soroswapClient.quote({
+      assetIn: tokenIn,
+      assetOut: tokenOut,
+      amount: amountIn,
+      tradeType: TradeType.EXACT_IN,
+      protocols: [SupportedProtocols?.[protocol]],
+    });
+
+    const data = { ...quote?.rawTrade, amountOut: quote?.amountOut };
+    res.status(200).json({
+      message: "quote fetched successfully",
+      data,
+    });
+
+    console.log("the data is", data);
+  } catch (error) {
+    console.error(
+      "Error:",
+      error.response ? error.response.data : error.message
+    );
   }
 });
 
