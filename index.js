@@ -1582,8 +1582,6 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         user.userId !== signInfo.userId ||
         !dataValid
       ) {
-        console.log(" swap data are", swapData);
-
         progress.push(sId, {
           step: "transaction authentication",
           status: "error",
@@ -1593,8 +1591,6 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
           .status(400)
           .json({ error: "Something wrong with signed transaction" });
       }
-
-      return;
 
       const amount = toBaseUnits(tokenIn?.amount, Number(tokenIn?.decimals));
       progress.push(sId, {
@@ -1622,16 +1618,31 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
 
       const amountMinI128 = new StellarSdk.XdrLargeInt(
         "i128",
-        Number("5000").toFixed()
+        Number(swapData?.amountOutMin).toFixed()
       ).toI128();
 
       const argsObj = {
         arg1: amountI128,
         arg2: amountMinI128,
-        arg3: nativeToScVal(swapPath, { type: "address" }),
+        arg3: nativeToScVal(swapData?.path, { type: "address" }),
         arg4: nativeToScVal(contractId, { type: "address" }),
         arg5: nativeToScVal(BigInt("17568169065194979733"), { type: "u64" }),
       };
+
+      const pair = await contractGet(
+        internalSigner.publicKey(),
+        network,
+        contractId,
+        "router_pair_for",
+        [
+          { value: swapData?.pair[0], type: "scSpecTypeAddress" },
+          { value: swapData?.pair[1], type: "scSpecTypeAddress" },
+        ]
+      );
+
+      console.log("the pair is", pair);
+
+      return;
 
       const authObj = {
         contract: tokenInScVal,
