@@ -1645,6 +1645,10 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
 
       const pairAddress = pair?.results[0]?.returnValueJson?.address;
 
+      console.log("swap data path is", swapData?.path);
+
+      console.log("the pair is", pairAddress);
+
       const authObj = {
         contract: tokenInScVal,
 
