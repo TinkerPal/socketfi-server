@@ -17,6 +17,7 @@ export async function getQuote(protocol, tokenIn, tokenOut, amount) {
     amount: amountIn,
     tradeType: TradeType.EXACT_IN,
     protocols: [SupportedProtocols?.[protocol]],
+    assetList: ["SOROSWAP"],
   });
 
   return quote;

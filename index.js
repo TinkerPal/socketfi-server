@@ -1602,11 +1602,11 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         detail: "Fetching Pair Router",
       });
 
-      const swapPath = await findSwapPathSoroswap(
-        tokenIn?.contract,
-        tokenOut?.contract,
-        amount.toString()
-      );
+      // const swapPath = await findSwapPathSoroswap(
+      //   tokenIn?.contract,
+      //   tokenOut?.contract,
+      //   amount.toString()
+      // );
 
       const tokenInScVal = StellarSdk.Address.contract(
         StrKey.decodeContract(tokenIn.contract)
@@ -1621,15 +1621,16 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
 
       const amountMinI128 = new StellarSdk.XdrLargeInt(
         "i128",
-        Number("5000").toFixed()
-        // Number(swapData?.amountOutMin).toFixed()
+        // Number("5000").toFixed()
+        Number(swapData?.amountOutMin).toFixed()
       ).toI128();
 
+      // console.log('')
       const argsObj = {
         arg1: amountI128,
         arg2: amountMinI128,
-        // arg3: nativeToScVal(swapData?.path, { type: "address" }),
-        arg3: nativeToScVal(swapPath, { type: "address" }),
+        arg3: nativeToScVal(swapData?.path, { type: "address" }),
+        // arg3: nativeToScVal(swapPath, { type: "address" }),
         arg4: nativeToScVal(contractId, { type: "address" }),
         arg5: nativeToScVal(BigInt("17568169065194979733"), { type: "u64" }),
       };
@@ -1640,10 +1641,10 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         contracts.PUBLIC.SOROSWAP,
         "router_pair_for",
         [
-          // { value: swapData?.path[0], type: "scSpecTypeAddress" },
-          // { value: swapData?.path[1], type: "scSpecTypeAddress" },
-          { value: swapPath[0], type: "scSpecTypeAddress" },
-          { value: swapPath[1], type: "scSpecTypeAddress" },
+          { value: swapData?.path[0], type: "scSpecTypeAddress" },
+          { value: swapData?.path[1], type: "scSpecTypeAddress" },
+          // { value: swapPath[0], type: "scSpecTypeAddress" },
+          // { value: swapPath[1], type: "scSpecTypeAddress" },
         ]
       );
 
