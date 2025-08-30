@@ -1621,7 +1621,8 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
 
       const amountMinI128 = new StellarSdk.XdrLargeInt(
         "i128",
-        Number(swapData?.amountOutMin).toFixed()
+        Number("5000").toFixed()
+        // Number(swapData?.amountOutMin).toFixed()
       ).toI128();
 
       const argsObj = {
@@ -1644,10 +1645,6 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
       );
 
       const pairAddress = pair?.results[0]?.returnValueJson?.address;
-
-      console.log("swap data path is", swapData?.path);
-
-      console.log("the pair is", pair?.results[0]?.returnValueJson);
 
       const authObj = {
         contract: tokenInScVal,
