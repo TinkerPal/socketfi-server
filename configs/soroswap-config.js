@@ -16,11 +16,7 @@ export async function getQuote(protocol, tokenIn, tokenOut, amount) {
     assetOut: tokenOut,
     amount: amountIn,
     tradeType: TradeType.EXACT_IN,
-    protocols: [
-      SupportedProtocols?.[protocol],
-      SupportedProtocols.PHOENIX,
-      SupportedProtocols.AQUA,
-    ],
+    protocols: [SupportedProtocols?.[protocol]],
   });
 
   return quote;
