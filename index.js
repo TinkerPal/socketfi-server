@@ -2003,7 +2003,7 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
     }
   } catch (error) {
     progress.push(sId, {
-      step: "soroswap transaction",
+      step: "upgrade transaction",
       status: "error",
       detail: error.response ? error.response.data : error.message,
     });
