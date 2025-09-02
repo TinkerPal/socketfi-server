@@ -1413,8 +1413,6 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
         nativeToScVal(contracts.PUBLIC.AQUA, { type: "address" }),
         nativeToScVal("swap_chained", { type: "symbol" }),
         nativeToScVal(argsObj),
-        nativeToScVal([nativeToScVal([nativeToScVal(authObj)])]),
-        tokenOutScVal,
         nativeToScVal(signatureAggregate, { type: "bytes" }),
       ];
 
@@ -1711,8 +1709,6 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
         nativeToScVal(contracts.PUBLIC.SOROSWAP, { type: "address" }),
         nativeToScVal("swap_exact_tokens_for_tokens", { type: "symbol" }),
         nativeToScVal(argsObj),
-        nativeToScVal([nativeToScVal([nativeToScVal(authObj)])]),
-        tokenOutScVal,
         nativeToScVal(signatureAggregate, { type: "bytes" }),
       ];
 
