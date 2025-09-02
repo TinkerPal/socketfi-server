@@ -1388,8 +1388,10 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
         detail: "Fetching Transaction Nonce",
       });
 
-      const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
+      console.log("the raw nonce", txNonceRes);
 
+      const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
+      console.log("the actual nonce", txNonce);
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
