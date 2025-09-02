@@ -1904,8 +1904,8 @@ app.post("/get-account-stats", async (req, res) => {
     const installedVersion = installedVersionData;
     // const installedVersion = installedVersionData?.results[0]?.returnValueJson;
 
-    console.dir("latest version", latestVersion);
-    console.dir("installed version", installedVersion);
+    console.log("latest version", latestVersion);
+    console.log("installed version", installedVersion);
 
     res.status(200).json({
       message: "transaction stats fetched successfully",
