@@ -1885,12 +1885,27 @@ app.post("/get-account-stats", async (req, res) => {
       []
     );
 
-    console.log("actual version data", versionData);
-    const versions = normalizeVersionRows(
+    const latestVersionObjArr = normalizeVersionRows(
       versionData?.results[0]?.returnValueJson?.vec
     );
 
-    console.dir(versions, { depth: null });
+    const latestVersion = latestVersionObjArr.find(
+      (vr) => vr?.label === "latest"
+    ).wasm;
+
+    let installedVersionData = await contractGet(
+      internalSigner.publicKey(),
+      network,
+      contractId,
+      "get_version",
+      []
+    );
+
+    const installedVersion =
+      installedVersionData?.results[0]?.returnValueJson?.bytes;
+
+    console.dir("latest version", latestVersion);
+    console.dir("installed version", installedVersion);
 
     res.status(200).json({
       message: "transaction stats fetched successfully",
