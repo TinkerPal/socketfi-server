@@ -1876,6 +1876,18 @@ app.post("/get-account-stats", async (req, res) => {
       }
     }
 
+    let versionData = await contractGet(
+      internalSigner.publicKey(),
+      network,
+      contracts[network].MASTER_CONTRACT,
+      "get_all_versions",
+      []
+    );
+
+    const versions = data?.results[0]?.returnValueJson?.map;
+    tokensDetails = normalizeTokenRows(input);
+    console.log("version data are", versions);
+
     res.status(200).json({
       message: "transaction stats fetched successfully",
       stats: stats,
