@@ -1920,81 +1920,15 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
         (vr) => vr?.label === "latest"
       );
 
-      const wasm = latestVersion?.wasm;
-
-      console.log("the wasm is", wasm);
-
-      return;
-      const amount = toBaseUnits(tokenIn?.amount, Number(tokenIn?.decimals));
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
-        detail: "Fetching Pair Router",
+        detail: "Fetching Latest Version",
       });
 
-      // const swapPath = await findSwapPathSoroswap(
-      //   tokenIn?.contract,
-      //   tokenOut?.contract,
-      //   amount.toString()
-      // );
+      const wasm = latestVersion?.wasm;
 
-      const tokenInScVal = StellarSdk.Address.contract(
-        StrKey.decodeContract(tokenIn.contract)
-      ).toScVal();
-      const tokenOutScVal = StellarSdk.Address.contract(
-        StrKey.decodeContract(tokenOut.contract)
-      ).toScVal();
-      const amountI128 = new StellarSdk.XdrLargeInt(
-        "i128",
-        Number(amount).toFixed()
-      ).toI128();
-
-      const amountMinI128 = new StellarSdk.XdrLargeInt(
-        "i128",
-        // Number("5000").toFixed()
-        Number(swapData?.amountOutMin).toFixed()
-      ).toI128();
-
-      // console.log('')
-      const argsObj = {
-        arg1: amountI128,
-        arg2: amountMinI128,
-        arg3: nativeToScVal(swapData?.path, { type: "address" }),
-        // arg3: nativeToScVal(swapPath, { type: "address" }),
-        arg4: nativeToScVal(contractId, { type: "address" }),
-        arg5: nativeToScVal(BigInt("17568169065194979733"), { type: "u64" }),
-      };
-
-      const pair = await contractGet(
-        internalSigner.publicKey(),
-        network,
-        contracts.PUBLIC.SOROSWAP,
-        "router_pair_for",
-        [
-          { value: swapData?.path[0], type: "scSpecTypeAddress" },
-          { value: swapData?.path[1], type: "scSpecTypeAddress" },
-          // { value: swapPath[0], type: "scSpecTypeAddress" },
-          // { value: swapPath[1], type: "scSpecTypeAddress" },
-        ]
-      );
-
-      const pairAddress = pair?.results[0]?.returnValueJson?.address;
-
-      const authObj = {
-        contract: tokenInScVal,
-
-        func: nativeToScVal("transfer", { type: "symbol" }),
-
-        args: nativeToScVal([
-          nativeToScVal(contractId, {
-            type: "address",
-          }),
-          nativeToScVal(pairAddress, {
-            type: "address",
-          }),
-          nativeToScVal(amount.toString(), { type: "i128" }),
-        ]),
-      };
+      console.log("the wasm is", wasm);
 
       const txNonceRes = await contractGet(
         internalSigner.publicKey(),
@@ -2007,7 +1941,7 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
-        detail: "Fetching Transaction Nonce",
+        detail: "Fetching Update Nonce",
       });
 
       const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
@@ -2026,18 +1960,14 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
       );
 
       const args = [
-        nativeToScVal(contracts.PUBLIC.SOROSWAP, { type: "address" }),
-        nativeToScVal("swap_exact_tokens_for_tokens", { type: "symbol" }),
-        nativeToScVal(argsObj),
-        nativeToScVal([nativeToScVal([nativeToScVal(authObj)])]),
-
+        nativeToScVal(Buffer.from(wasm, "hex"), { type: "bytes" }),
         nativeToScVal(signatureAggregate, { type: "bytes" }),
       ];
 
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
-        detail: "Submiting Transaction Onchain",
+        detail: "Submiting Update Onchain",
       });
 
       const txResponse = await invokeContractScVal(
@@ -2069,28 +1999,6 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
           message: "transaction successful",
           data: txResponse,
         });
-
-        await TokenList.addTokenToList(
-          signInfo.userId,
-          network,
-          tokenOut?.contract
-        );
-
-        if (txDetails) {
-          const txRecord = {
-            ...txDetails,
-            txId: txResponse?.txHash,
-            tokenOut: tokenIn?.contract,
-            symOut: tokenIn?.code,
-            amountOut: tokenIn?.amount,
-
-            tokenIn: tokenOut?.contract,
-            symIn: tokenOut?.code,
-            amountIn: tokenOut?.amount,
-          };
-
-          await recordTransaction(txRecord);
-        }
       }
     }
   } catch (error) {
