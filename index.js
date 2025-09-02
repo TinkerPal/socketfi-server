@@ -760,7 +760,7 @@ app.post("/any-invoke-external", async (req, res) => {
       await TokenList.addTokenToList(
         user.userId,
         network,
-        selectedFunc.inputs[1].value
+        callFunction.inputs[1].value
       );
     }
 
