@@ -1909,8 +1909,6 @@ app.post("/get-account-stats", async (req, res) => {
       needUpdate: latestVersion?.wasm !== installedVersion,
     };
 
-    console.log("version info", versionInfo);
-
     res.status(200).json({
       message: "transaction stats fetched successfully",
       stats: stats,
