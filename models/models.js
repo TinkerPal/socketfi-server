@@ -120,14 +120,107 @@ const transactionSchema = new Schema({
 });
 
 const loyaltyPointsSchema = new Schema({
-  userId: String,
+  userId: { type: String, required: true, trim: true },
   points: String,
 });
+
+const NETWORKS = ["TESTNET", "PUBLIC"];
+const normNet = (n) => {
+  const v = String(n || "")
+    .trim()
+    .toUpperCase();
+  if (!NETWORKS.includes(v)) throw new Error(`Invalid network: ${n}`);
+  return v;
+};
+// If your tokens (e.g., contract IDs) are case-insensitive, keep .toUpperCase().
+const normTok = (t) =>
+  String(t || "")
+    .trim()
+    .toUpperCase();
+
+const tokenArray = {
+  type: [String],
+  default: [],
+  validate: {
+    validator: (arr) =>
+      Array.isArray(arr) &&
+      arr.every((s) => typeof s === "string" && s.trim().length > 0),
+    message: "tokens.* items must be non-empty strings",
+  },
+};
+
+const tokenListSchema = new Schema(
+  {
+    userId: {
+      type: String,
+      required: true,
+      trim: true,
+      unique: true,
+      index: true,
+    },
+    tokens: {
+      TESTNET: tokenArray,
+      PUBLIC: tokenArray,
+    },
+  },
+  { timestamps: true }
+);
+
+tokenListSchema.statics.addTokenToList = async function (
+  userId,
+  network,
+  token
+) {
+  const net = normNet(network);
+  const tok = normTok(token);
+  if (!tok) throw new Error("Token is required");
+
+  // upsert so a new doc is created if it doesn't exist
+  return this.findOneAndUpdate(
+    { userId: String(userId).trim() },
+    { $addToSet: { [`tokens.${net}`]: tok } },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  ).lean();
+};
+
+tokenListSchema.statics.removeTokenFromList = async function (
+  userId,
+  network,
+  token
+) {
+  const net = normNet(network);
+  const tok = normTok(token);
+  if (!tok) throw new Error("Token is required");
+
+  return this.findOneAndUpdate(
+    { userId: String(userId).trim() },
+    { $pull: { [`tokens.${net}`]: tok } },
+    { new: true }
+  ).lean();
+};
+
+tokenListSchema.statics.getTokenList = async function getTokenList(
+  userId,
+  network
+) {
+  const net = normNet(network); // uses the validator from earlier
+  const doc = await this.findOne(
+    { userId: String(userId).trim() },
+    { _id: 0, [`tokens.${net}`]: 1 }
+  ).lean();
+
+  const arr = doc?.tokens?.[net] ?? [];
+  // de-dupe + clean (useful if older data wasn't normalized)
+  return Array.from(new Set(arr.map((t) => String(t || "").trim()))).filter(
+    Boolean
+  );
+};
+
 const reservedUsernamesSchema = new Schema({
   username: { type: String, required: true, trim: true },
 });
-transactionSchema.index({ userId: 1 });
-loyaltyPointsSchema.index({ userId: 1 });
+// transactionSchema.index({ userId: 1 });
+// loyaltyPointsSchema.index({ userId: 1 });
 
 function authenticateToken(token) {
   if (!token) {
@@ -150,6 +243,7 @@ const ReservedUsernames = mongoose.model(
 const UserAccount = mongoose.model("userAccount", userAccountSchema);
 const Transaction = mongoose.model("transaction", transactionSchema);
 const LoyaltyPoints = mongoose.model("loyaltyPoints", loyaltyPointsSchema);
+const TokenList = mongoose.model("tokenList", tokenListSchema);
 
 module.exports = {
   MONGODB_URI,
@@ -157,5 +251,6 @@ module.exports = {
   Transaction,
   LoyaltyPoints,
   ReservedUsernames,
+  TokenList,
   authenticateToken,
 };

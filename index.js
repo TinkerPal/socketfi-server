@@ -16,7 +16,11 @@ var StellarSdk = require("@stellar/stellar-sdk");
 const { nativeToScVal, StrKey } = StellarSdk;
 const bufferStorage = {};
 
-const { MONGODB_URI, authenticateToken } = require("./models/models");
+const {
+  MONGODB_URI,
+  authenticateToken,
+  TokenList,
+} = require("./models/models");
 const {
   getUserByUsername,
   createUser,
@@ -865,8 +869,6 @@ app.post("/submit-transaction-external", async (req, res) => {
     });
     const server = RpcServer(network, "json");
 
-    console.log("the signed tx is", signedTx);
-
     const sendResponse = await server.sendTransaction(signedTx);
 
     if (sendResponse) {
@@ -1452,6 +1454,12 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
           data: txResponse,
         });
 
+        await TokenList.addTokenToList(
+          signInfo.userId,
+          network,
+          tokenOut?.contract
+        );
+
         if (txDetails) {
           const txRecord = {
             ...txDetails,
@@ -1744,6 +1752,12 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
           data: txResponse,
         });
 
+        await TokenList.addTokenToList(
+          signInfo.userId,
+          network,
+          tokenOut?.contract
+        );
+
         if (txDetails) {
           const txRecord = {
             ...txDetails,
@@ -1832,6 +1846,12 @@ app.post("/get-account-stats", async (req, res) => {
     const points = await getLoyaltyPoints(user.userId);
 
     const contractId = user?.address?.[network];
+
+    const list = await TokenList.getTokenList(user.userId, network);
+
+    console.log("the token list is", list);
+
+    return;
 
     const data = await contractGet(
       internalSigner.publicKey(),
