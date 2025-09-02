@@ -25,7 +25,10 @@ const serverUrl = {
     testnet: urlTest2,
     public: url,
   },
-  horizon: { testnet: "https://horizon.test", public: "https://horizon.main" },
+  horizon: {
+    testnet: `https://rpc.ankr.com/premium-http/stellar_testnet_horizon/${ankrKey}`,
+    public: `https://rpc.ankr.com/premium-http/stellar_horizon/${ankrKey}`,
+  },
 };
 
 const key = process.env.KEY;
