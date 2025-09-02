@@ -755,6 +755,15 @@ app.post("/any-invoke-external", async (req, res) => {
       txXdr: preparedTransaction,
     });
 
+    if (callFunction.name === "deposit") {
+      const user = await findUserByAddress(contractId, { network: network });
+      await TokenList.addTokenToList(
+        user.userId,
+        network,
+        selectedFunc.inputs[1].value
+      );
+    }
+
     // 🔹 Send response back to client
     res.status(200).json({
       message: "Prepare invoke external successful",
