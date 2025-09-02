@@ -1800,6 +1800,315 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
   }
 });
 
+app.post("/upgrade-wallet-with-sig", async (req, res) => {
+  const { contractId, network, callFunction, sigData, sId = "" } = req.body;
+  try {
+    if (!network || !contractId || !callFunction || !sigData) {
+      progress.push(sId, {
+        step: "user authentication",
+        status: "error",
+        detail: "Request body is incomplete",
+      });
+      return res.status(400).json({ error: "request body is incomplete" });
+    }
+
+    const signInfo = JSON.parse(req.cookies.signInfo);
+    if (!signInfo) {
+      progress.push(sId, {
+        step: "user authentication",
+        status: "error",
+        detail: "Signature info not found",
+      });
+      return res.status(400).json({ error: "Signature info not found" });
+    }
+
+    const authHeader = req.headers["authorization"];
+
+    if (!authHeader) {
+      progress.push(sId, {
+        step: "user authentication",
+        status: "error",
+        detail: "Authorization header is missing",
+      });
+      return res.status(401).json({ error: "Authorization header is missing" });
+    }
+
+    const accessToken = authHeader.split(" ")[1];
+
+    progress.push(sId, {
+      step: "user authentication",
+      status: "start",
+      detail: "Authenticating User Access",
+    });
+
+    const accessVerification = authenticateToken(accessToken);
+
+    const user = await getUserByUsername(accessVerification.username);
+
+    if (!user) {
+      progress.push(sId, {
+        step: "user authentication",
+        status: "error",
+        detail: "No user found or user not authorized",
+      });
+      return res
+        .status(400)
+        .json({ error: "No user found or user not authorized" });
+    }
+
+    const areEqual =
+      Buffer.from(
+        new Uint8Array(Buffer.from(user?.passkey?.id, "hex"))
+      ).compare(Buffer.from(base64UrlToUint8Array(sigData.id))) === 0;
+
+    if (!areEqual) {
+      progress.push(sId, {
+        step: "transaction authentication",
+        status: "error",
+        detail: "Invalid signature data received",
+      });
+      return res.status(400).json({ error: "Invalid signature data received" });
+    }
+
+    const verification = await verifyAuthenticationResponse({
+      response: sigData,
+      expectedChallenge: signInfo.challenge,
+      expectedOrigin: CLIENT_URL,
+      expectedRPID: rp_id,
+      authenticator: {
+        credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
+        credentialPublicKey: new Uint8Array(
+          Buffer.from(user?.passkey?.publicKey, "hex")
+        ),
+        counter: user.passkey.counter,
+        transports: user.passkey.transports,
+      },
+    });
+
+    if (verification.verified) {
+      const dataValid =
+        encodeData({ contractId, network, callFunction }) === signInfo.data;
+
+      if (
+        user.username !== signInfo.username ||
+        user.userId !== signInfo.userId ||
+        !dataValid
+      ) {
+        progress.push(sId, {
+          step: "transaction authentication",
+          status: "error",
+          detail: "Something wrong with signed transaction",
+        });
+        return res
+          .status(400)
+          .json({ error: "Something wrong with signed transaction" });
+      }
+
+      let versionData = await contractGet(
+        internalSigner.publicKey(),
+        network,
+        contracts[network].MASTER_CONTRACT,
+        "get_all_versions",
+        []
+      );
+
+      const latestVersionObjArr = normalizeVersionRows(
+        versionData?.results[0]?.returnValueJson?.vec
+      );
+
+      const latestVersion = latestVersionObjArr.find(
+        (vr) => vr?.label === "latest"
+      );
+
+      const wasm = latestVersion?.wasm;
+
+      console.log("the wasm is", wasm);
+
+      return;
+      const amount = toBaseUnits(tokenIn?.amount, Number(tokenIn?.decimals));
+      progress.push(sId, {
+        step: "transaction submission",
+        status: "progress",
+        detail: "Fetching Pair Router",
+      });
+
+      // const swapPath = await findSwapPathSoroswap(
+      //   tokenIn?.contract,
+      //   tokenOut?.contract,
+      //   amount.toString()
+      // );
+
+      const tokenInScVal = StellarSdk.Address.contract(
+        StrKey.decodeContract(tokenIn.contract)
+      ).toScVal();
+      const tokenOutScVal = StellarSdk.Address.contract(
+        StrKey.decodeContract(tokenOut.contract)
+      ).toScVal();
+      const amountI128 = new StellarSdk.XdrLargeInt(
+        "i128",
+        Number(amount).toFixed()
+      ).toI128();
+
+      const amountMinI128 = new StellarSdk.XdrLargeInt(
+        "i128",
+        // Number("5000").toFixed()
+        Number(swapData?.amountOutMin).toFixed()
+      ).toI128();
+
+      // console.log('')
+      const argsObj = {
+        arg1: amountI128,
+        arg2: amountMinI128,
+        arg3: nativeToScVal(swapData?.path, { type: "address" }),
+        // arg3: nativeToScVal(swapPath, { type: "address" }),
+        arg4: nativeToScVal(contractId, { type: "address" }),
+        arg5: nativeToScVal(BigInt("17568169065194979733"), { type: "u64" }),
+      };
+
+      const pair = await contractGet(
+        internalSigner.publicKey(),
+        network,
+        contracts.PUBLIC.SOROSWAP,
+        "router_pair_for",
+        [
+          { value: swapData?.path[0], type: "scSpecTypeAddress" },
+          { value: swapData?.path[1], type: "scSpecTypeAddress" },
+          // { value: swapPath[0], type: "scSpecTypeAddress" },
+          // { value: swapPath[1], type: "scSpecTypeAddress" },
+        ]
+      );
+
+      const pairAddress = pair?.results[0]?.returnValueJson?.address;
+
+      const authObj = {
+        contract: tokenInScVal,
+
+        func: nativeToScVal("transfer", { type: "symbol" }),
+
+        args: nativeToScVal([
+          nativeToScVal(contractId, {
+            type: "address",
+          }),
+          nativeToScVal(pairAddress, {
+            type: "address",
+          }),
+          nativeToScVal(amount.toString(), { type: "i128" }),
+        ]),
+      };
+
+      const txNonceRes = await contractGet(
+        internalSigner.publicKey(),
+        network,
+        contractId,
+        "get_nonce",
+        []
+      );
+
+      progress.push(sId, {
+        step: "transaction submission",
+        status: "progress",
+        detail: "Fetching Transaction Nonce",
+      });
+
+      const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
+
+      progress.push(sId, {
+        step: "transaction submission",
+        status: "progress",
+        detail: "Generating BLS Signatures",
+      });
+
+      const signatureAggregate = await signatureAggregator(
+        network,
+        user.passkey.publicKey,
+        contractId,
+        txNonce
+      );
+
+      const args = [
+        nativeToScVal(contracts.PUBLIC.SOROSWAP, { type: "address" }),
+        nativeToScVal("swap_exact_tokens_for_tokens", { type: "symbol" }),
+        nativeToScVal(argsObj),
+        nativeToScVal([nativeToScVal([nativeToScVal(authObj)])]),
+
+        nativeToScVal(signatureAggregate, { type: "bytes" }),
+      ];
+
+      progress.push(sId, {
+        step: "transaction submission",
+        status: "progress",
+        detail: "Submiting Transaction Onchain",
+      });
+
+      const txResponse = await invokeContractScVal(
+        network,
+        contractId,
+        callFunction,
+        args
+      );
+
+      if (!txResponse) {
+        {
+          progress.push(sId, {
+            step: "transaction submission",
+            status: "error",
+            detail: "Transaction Submission Failed",
+          });
+          return res
+            .status(400)
+            .json({ error: "Transaction Submission Failed" });
+        }
+      } else {
+        progress.push(sId, {
+          step: "transaction submission",
+          status: "done",
+          detail: "Transaction Submitted Successfully",
+          eid: `txHash_${txResponse?.txHash}`,
+        });
+        res.status(200).json({
+          message: "transaction successful",
+          data: txResponse,
+        });
+
+        await TokenList.addTokenToList(
+          signInfo.userId,
+          network,
+          tokenOut?.contract
+        );
+
+        if (txDetails) {
+          const txRecord = {
+            ...txDetails,
+            txId: txResponse?.txHash,
+            tokenOut: tokenIn?.contract,
+            symOut: tokenIn?.code,
+            amountOut: tokenIn?.amount,
+
+            tokenIn: tokenOut?.contract,
+            symIn: tokenOut?.code,
+            amountIn: tokenOut?.amount,
+          };
+
+          await recordTransaction(txRecord);
+        }
+      }
+    }
+  } catch (error) {
+    progress.push(sId, {
+      step: "soroswap transaction",
+      status: "error",
+      detail: error.response ? error.response.data : error.message,
+    });
+    console.error(
+      "Error:",
+      error.response ? error.response.data : error.message
+    );
+    return res.status(400).json({
+      error: error.response ? error.response.data : error.message,
+    });
+  }
+});
+
 app.post("/get-quote", async (req, res) => {
   try {
     const { protocol, tokenIn, tokenOut, amount } = req.body;
