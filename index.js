@@ -1871,7 +1871,9 @@ app.post("/get-account-stats", async (req, res) => {
       const input = data?.results[0]?.returnValueJson?.map;
       tokensDetails = normalizeTokenRows(input);
 
-      tokenPrices = await bestUsdQuote(tokensDetails);
+      if (network === "PUBLIC") {
+        tokenPrices = await bestUsdQuote(tokensDetails);
+      }
     }
 
     res.status(200).json({
