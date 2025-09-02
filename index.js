@@ -1887,7 +1887,7 @@ app.post("/get-account-stats", async (req, res) => {
     console.log("actual version data", versionData);
     const versions = versionData?.results[0]?.returnValueJson?.vec;
 
-    console.log("version data are", versions);
+    console.dir(versions, { depth: null });
 
     res.status(200).json({
       message: "transaction stats fetched successfully",
