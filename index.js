@@ -1891,7 +1891,7 @@ app.post("/get-account-stats", async (req, res) => {
 
     const latestVersion = latestVersionObjArr.find(
       (vr) => vr?.label === "latest"
-    ).wasm;
+    );
 
     let installedVersionData = await contractGet(
       internalSigner.publicKey(),
@@ -1901,8 +1901,7 @@ app.post("/get-account-stats", async (req, res) => {
       []
     );
 
-    const installedVersion =
-      installedVersionData?.results[0]?.returnValueJson?.bytes;
+    const installedVersion = installedVersionData?.results[0]?.returnValueJson;
 
     console.dir("latest version", latestVersion);
     console.dir("installed version", installedVersion);
