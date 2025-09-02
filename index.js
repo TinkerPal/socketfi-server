@@ -1889,10 +1889,10 @@ app.post("/get-account-stats", async (req, res) => {
       versionData?.results[0]?.returnValueJson?.vec
     );
 
-    // const latestVersion = latestVersionObjArr.find(
-    //   (vr) => vr?.label === "latest"
-    // );
-    const latestVersion = latestVersionObjArr;
+    const latestVersion = latestVersionObjArr.find(
+      (vr) => vr?.label === "latest"
+    );
+
     let installedVersionData = await contractGet(
       internalSigner.publicKey(),
       network,
@@ -1901,8 +1901,8 @@ app.post("/get-account-stats", async (req, res) => {
       []
     );
 
-    const installedVersion = installedVersionData;
-    // const installedVersion = installedVersionData?.results[0]?.returnValueJson;
+    const installedVersion =
+      installedVersionData?.results[0]?.returnValueJson?.bytes;
 
     console.log("latest version", latestVersion);
     console.log("installed version", installedVersion);
