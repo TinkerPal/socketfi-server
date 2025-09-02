@@ -1884,8 +1884,8 @@ app.post("/get-account-stats", async (req, res) => {
       []
     );
 
-    const versions = data?.results[0]?.returnValueJson?.map;
-    tokensDetails = normalizeTokenRows(input);
+    const versions = versionData?.results[0]?.returnValueJson?.map;
+
     console.log("version data are", versions);
 
     res.status(200).json({
