@@ -1884,6 +1884,7 @@ app.post("/get-account-stats", async (req, res) => {
       []
     );
 
+    console.log("actual version data", versionData);
     const versions = versionData?.results[0]?.returnValueJson?.map;
 
     console.log("version data are", versions);
