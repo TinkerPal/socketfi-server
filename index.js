@@ -1856,19 +1856,23 @@ app.post("/get-account-stats", async (req, res) => {
     const contractId = user?.address?.[network];
 
     const list = await TokenList.getTokenList(user.userId, network);
+    let tokensDetails = [];
+    let tokenPrices = {};
 
-    const data = await contractGet(
-      internalSigner.publicKey(),
-      network,
-      contractId,
-      "get_token_list",
-      [{ value: list, type: "scSpecTypeAddress" }]
-    );
+    if (list?.length > 0) {
+      let data = await contractGet(
+        internalSigner.publicKey(),
+        network,
+        contractId,
+        "get_token_list",
+        [{ value: list, type: "scSpecTypeAddress" }]
+      );
 
-    const input = data?.results[0]?.returnValueJson?.map;
-    const tokensDetails = normalizeTokenRows(input);
+      const input = data?.results[0]?.returnValueJson?.map;
+      tokensDetails = normalizeTokenRows(input);
 
-    const tokenPrices = await bestUsdQuote(tokensDetails);
+      tokenPrices = await bestUsdQuote(tokensDetails);
+    }
 
     res.status(200).json({
       message: "transaction stats fetched successfully",
