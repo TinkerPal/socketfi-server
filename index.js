@@ -1904,14 +1904,19 @@ app.post("/get-account-stats", async (req, res) => {
     const installedVersion =
       installedVersionData?.results[0]?.returnValueJson?.bytes;
 
-    console.log("latest version", latestVersion);
-    console.log("installed version", installedVersion);
+    const versionInfo = {
+      ...latestVersion,
+      needUpdate: latestVersion?.wasm !== installedVersion,
+    };
+
+    console.log("version info", versionInfo);
 
     res.status(200).json({
       message: "transaction stats fetched successfully",
       stats: stats,
       tokensDetails: tokensDetails,
       prices: tokenPrices,
+      versionInfo,
       points: points,
     });
   } catch (error) {
