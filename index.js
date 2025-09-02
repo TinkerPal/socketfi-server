@@ -1848,16 +1848,12 @@ app.post("/get-account-stats", async (req, res) => {
 
     const list = await TokenList.getTokenList(user.userId, network);
 
-    console.log("the token list is", list);
-
-    return;
-
     const data = await contractGet(
       internalSigner.publicKey(),
       network,
       contractId,
       "get_token_list",
-      []
+      [{ value: list, type: "scSpecTypeAddress" }]
     );
 
     const input = data?.results[0]?.returnValueJson?.map;
