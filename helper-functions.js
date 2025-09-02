@@ -527,6 +527,41 @@ function normalizeTokenRows(
   });
 }
 
+function normalizeVersionRows(rows = []) {
+  return rows.map((row) => {
+    // Initialize default values
+    let label = null;
+    let version = null;
+    let wasm = null;
+
+    // Extract relevant information from the `map` entries
+    if (Array.isArray(row?.map)) {
+      const extracted = {};
+      for (const entry of row.map) {
+        const k = entry?.key?.symbol;
+        const v = entry?.val ?? {};
+
+        // Extract the value based on the symbol
+        if (k === "label") {
+          extracted.label = v.string ?? v;
+        } else if (k === "version") {
+          extracted.version = v.string ?? v;
+        } else if (k === "wasm") {
+          extracted.wasm = v.bytes ?? v;
+        }
+      }
+
+      // Assign extracted values
+      label = extracted.label ?? label;
+      version = extracted.version ?? version;
+      wasm = extracted.wasm ?? wasm;
+    }
+
+    // Return the normalized result
+    return { label, version, wasm };
+  });
+}
+
 module.exports = {
   createUser,
   getUserByUsername,
@@ -540,4 +575,5 @@ module.exports = {
   reduceRows,
   normalizeTokenRows,
   getLoyaltyPoints,
+  normalizeVersionRows,
 };

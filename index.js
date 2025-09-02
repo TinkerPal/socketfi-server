@@ -34,6 +34,7 @@ const {
   reduceRows,
   normalizeTokenRows,
   getLoyaltyPoints,
+  normalizeVersionRows,
 } = require("./helper-functions");
 const nodes = require("./signer-nodes/signer-nodes");
 const {
@@ -1885,7 +1886,9 @@ app.post("/get-account-stats", async (req, res) => {
     );
 
     console.log("actual version data", versionData);
-    const versions = versionData?.results[0]?.returnValueJson?.vec;
+    const versions = normalizeVersionRows(
+      versionData?.results[0]?.returnValueJson?.vec
+    );
 
     console.dir(versions, { depth: null });
 
