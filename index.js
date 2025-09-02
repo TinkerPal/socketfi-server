@@ -865,6 +865,8 @@ app.post("/submit-transaction-external", async (req, res) => {
     });
     const server = RpcServer(network, "json");
 
+    console.log("the signed tx is", signedTx);
+
     const sendResponse = await server.sendTransaction(signedTx);
 
     if (sendResponse) {

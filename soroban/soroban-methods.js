@@ -34,7 +34,7 @@ const serverUrl = {
 const key = process.env.KEY;
 
 const { RpcServer, HorizonServer } = new StellarServers({
-  key,
+  serverUrl,
 });
 
 const internalSigner = Keypair.fromSecret(process.env.SIGNER_PRIVATE_KEY);
