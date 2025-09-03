@@ -1,5 +1,3 @@
-import BigNumber from "bignumber.js";
-
 function parseI128Like(v, { signed = true } = {}) {
   if (v == null) return 0n;
   if (typeof v === "bigint") return v;
@@ -46,7 +44,7 @@ function normalizeAccessSettings(pairs) {
 
 // convert BigInt to string so JSON is valid
 function jsonReadyAccessSettings(x) {
-  const max = Number(x.max_allowance.toString()) / 10e7;
+  const max = Number(x.max_allowance.toString()) / 10e7 || 0;
   return { ...x, max_allowance: max.toFixed(2) };
 }
 
