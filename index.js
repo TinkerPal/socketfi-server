@@ -2151,7 +2151,7 @@ app.post("/get-account-stats", async (req, res) => {
     console.log("fine here 7");
 
     const accountSettingsVal =
-      accountSettings?.results[0]?.returnValueJson?.map;
+      accountSettings?.results?.[0]?.returnValueJson?.map;
 
     const settingVals = normalizeAccessSettings(accountSettingsVal);
     console.log("fine here 8");
