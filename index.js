@@ -1405,10 +1405,8 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
         detail: "Fetching Transaction Nonce",
       });
 
-      console.log("the raw nonce", txNonceRes);
-
       const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
-      console.log("the actual nonce", txNonce);
+
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
@@ -1931,8 +1929,6 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
 
       const wasm = latestVersion?.wasm;
 
-      console.log("the wasm is", wasm);
-
       const txNonceRes = await contractGet(
         internalSigner.publicKey(),
         network,
@@ -2092,7 +2088,6 @@ app.post("/get-account-stats", async (req, res) => {
       const input = data?.results?.[0]?.returnValueJson?.map;
       tokensDetails = normalizeTokenRows(input);
 
-      console.log("token info", input);
       if (network === "PUBLIC") {
         tokenPrices = await bestUsdQuote(tokensDetails);
       }
@@ -2110,10 +2105,6 @@ app.post("/get-account-stats", async (req, res) => {
       versionData?.results?.[0]?.returnValueJson?.vec
     );
 
-    console.log(
-      "version info",
-      versionData?.results?.[0]?.returnValueJson?.vec
-    );
     const latestVersion = latestVersionObjArr.find(
       (vr) => vr?.label === "latest"
     );
