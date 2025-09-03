@@ -2093,7 +2093,7 @@ app.post("/get-account-stats", async (req, res) => {
 
       console.log("fine here 12");
 
-      const input = data?.results[0]?.returnValueJson?.map;
+      const input = data?.results?.[0]?.returnValueJson?.map;
       tokensDetails = normalizeTokenRows(input);
 
       if (network === "PUBLIC") {
