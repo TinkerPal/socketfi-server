@@ -139,19 +139,7 @@ async function createContract(network, args) {
       args
     );
 
-    let walletContractId;
-    // if (network === "TESTNET") {
-    //   walletContractId =
-    //     res?.resultMetaJson?.v4?.soroban_meta?.return_value?.address;
-    // } else if (network === "PUBLIC") {
-    //   walletContractId =
-    //     res?.resultMetaJson?.v3?.soroban_meta?.return_value?.address;
-    // }
-
-    walletContractId =
-      res?.resultMetaJson?.v4?.soroban_meta?.return_value?.address;
-
-    return walletContractId;
+    return res?.resultMetaJson?.v4?.soroban_meta?.return_value?.address;
   } catch (e) {
     console.log(e);
   }
