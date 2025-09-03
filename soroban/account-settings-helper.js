@@ -42,10 +42,30 @@ function normalizeAccessSettings(pairs) {
   return jsonReadyAccessSettings(out);
 }
 
-// convert BigInt to string so JSON is valid
-function jsonReadyAccessSettings(x) {
-  const max = Number(x.max_allowance.toString()) / 10e7 || 0;
-  return { ...x, max_allowance: max.toFixed(2) };
+function formatScaledAmount(i128, { decimals = 7, fraction = 2 } = {}) {
+  const bi = typeof i128 === "bigint" ? i128 : BigInt(String(i128 ?? 0));
+  const neg = bi < 0n;
+  const abs = neg ? -bi : bi;
+
+  const D = 10n ** BigInt(decimals); // original scale (e.g., 1e7)
+  const F = 10n ** BigInt(fraction); // target fraction (e.g., 1e2)
+  // round half up to `fraction` digits
+  let scaled = (abs * F + D / 2n) / D;
+
+  const intPart = scaled / F;
+  const fracPart = (scaled % F).toString().padStart(fraction, "0");
+  return `${neg ? "-" : ""}${intPart}${fraction ? "." + fracPart : ""}`;
+}
+
+// keep raw BigInt as string for machines, plus a human string
+function jsonReadyAccessSettings(x, { decimals = 7, fraction = 2 } = {}) {
+  return {
+    ...x,
+    max_allowance: formatScaledAmount(x.max_allowance, {
+      decimals,
+      fraction,
+    }),
+  };
 }
 
 module.exports = { normalizeAccessSettings };
