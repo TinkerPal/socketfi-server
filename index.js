@@ -2136,7 +2136,7 @@ app.post("/get-account-stats", async (req, res) => {
 
     const accountSettingsVal = accountSettings?.results[0]?.returnValueJson;
 
-    console.log("account settings values", accountSettingsVal);
+    console.dir(accountSettingsVal, { depth: null });
 
     res.status(200).json({
       message: "transaction stats fetched successfully",
