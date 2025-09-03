@@ -2076,8 +2076,6 @@ app.post("/get-account-stats", async (req, res) => {
 
     const contractId = user?.address?.[network];
 
-    console.log("fine here 1");
-
     const list = await TokenList.getTokenList(user.userId, network);
     let tokensDetails = [];
     let tokenPrices = {};
@@ -2091,16 +2089,14 @@ app.post("/get-account-stats", async (req, res) => {
         [{ value: list, type: "scSpecTypeAddress" }]
       );
 
-      console.log("fine here 12");
-
       const input = data?.results?.[0]?.returnValueJson?.map;
       tokensDetails = normalizeTokenRows(input);
 
+      console.log("token info", input);
       if (network === "PUBLIC") {
         tokenPrices = await bestUsdQuote(tokensDetails);
       }
     }
-    console.log("fine here 3");
 
     let versionData = await contractGet(
       internalSigner.publicKey(),
@@ -2110,17 +2106,17 @@ app.post("/get-account-stats", async (req, res) => {
       []
     );
 
-    console.log("fine here 4");
-
     const latestVersionObjArr = normalizeVersionRows(
-      versionData?.results[0]?.returnValueJson?.vec
+      versionData?.results?.[0]?.returnValueJson?.vec
     );
 
+    console.log(
+      "version info",
+      versionData?.results?.[0]?.returnValueJson?.vec
+    );
     const latestVersion = latestVersionObjArr.find(
       (vr) => vr?.label === "latest"
     );
-
-    console.log("fine here 5");
 
     let installedVersionData = await contractGet(
       internalSigner.publicKey(),
@@ -2129,8 +2125,6 @@ app.post("/get-account-stats", async (req, res) => {
       "get_version",
       []
     );
-
-    console.log("fine here 6");
 
     const installedVersion =
       installedVersionData?.results[0]?.returnValueJson?.bytes;
@@ -2148,13 +2142,10 @@ app.post("/get-account-stats", async (req, res) => {
       []
     );
 
-    console.log("fine here 7");
-
     const accountSettingsVal =
       accountSettings?.results?.[0]?.returnValueJson?.map;
 
     const settingVals = normalizeAccessSettings(accountSettingsVal);
-    console.log("fine here 8");
 
     res.status(200).json({
       message: "transaction stats fetched successfully",
