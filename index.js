@@ -2142,13 +2142,12 @@ app.post("/get-account-stats", async (req, res) => {
 
     const settingVals = normalizeAccessSettings(accountSettingsVal);
 
-    console.log(settingVals);
-
     res.status(200).json({
       message: "transaction stats fetched successfully",
       stats: stats,
       tokensDetails: tokensDetails,
       prices: tokenPrices,
+      accountSettings: settingVals,
       versionInfo,
       points: points,
     });
