@@ -58,6 +58,9 @@ const { findSwapPathAqua } = require("./configs/aqua-config");
 const { findSwapPathSoroswap, getQuote } = require("./configs/soroswap-config");
 const { bestUsdQuote } = require("./soroban/price-computation");
 const { isReservedUsername } = require("./models/reserved_usernames");
+const {
+  normalizeAccessSettings,
+} = require("./soroban/account-settings-helper");
 const sameSiteConfig = process.env.MODE === "PRODUCTION" ? "none" : "none";
 
 const port = process.env.PORT || 3000;
@@ -2134,9 +2137,12 @@ app.post("/get-account-stats", async (req, res) => {
       []
     );
 
-    const accountSettingsVal = accountSettings?.results[0]?.returnValueJson;
+    const accountSettingsVal =
+      accountSettings?.results[0]?.returnValueJson?.map;
 
-    console.dir(accountSettingsVal, { depth: null });
+    const settingVals = normalizeAccessSettings(accountSettingsVal);
+
+    console.log(settingVals);
 
     res.status(200).json({
       message: "transaction stats fetched successfully",
