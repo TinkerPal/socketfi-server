@@ -2126,6 +2126,18 @@ app.post("/get-account-stats", async (req, res) => {
       needUpdate: latestVersion?.wasm !== installedVersion,
     };
 
+    let accountSettings = await contractGet(
+      internalSigner.publicKey(),
+      network,
+      contractId,
+      "get_access_settings",
+      []
+    );
+
+    const accountSettingsVal = accountSettings?.results[0]?.returnValueJson;
+
+    console.log("account settings values", accountSettingsVal);
+
     res.status(200).json({
       message: "transaction stats fetched successfully",
       stats: stats,
