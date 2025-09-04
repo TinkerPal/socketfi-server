@@ -710,6 +710,7 @@ app.post("/access-load-wallet", async (req, res) => {
     res.status(200).json({
       message: "contract specs loaded successfully",
       spec: spec,
+      wallet: user.address[network],
     });
   } catch (error) {
     console.error(
