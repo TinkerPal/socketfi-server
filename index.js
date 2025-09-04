@@ -671,6 +671,10 @@ app.post("/load-contract-specs", async (req, res) => {
       "Error:",
       error.response ? error.response.data : error.message
     );
+
+    return res.status(400).json({
+      error: error.response ? error.response.data : error.message,
+    });
   }
 });
 
