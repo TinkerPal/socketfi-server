@@ -38,11 +38,11 @@ const { RpcServer, HorizonServer } = new StellarServers({
 });
 
 const primaryServer = new StellarServers({
-  key,
+  serverUrl,
 }).RpcServer;
 
 const secondaryServer = new StellarServers({
-  serverUrl,
+  key,
 }).RpcServer;
 
 const internalSigner = Keypair.fromSecret(process.env.SIGNER_PRIVATE_KEY);
