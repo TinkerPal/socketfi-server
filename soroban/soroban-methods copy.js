@@ -96,7 +96,9 @@ async function invokeCreate(network, contractId, operation, args) {
 
     txSign.sign(internalSigner);
 
-    const res = await sendWithFailover(txSign.toXDR(), network);
+    const res = await RpcServer(network, "json").sendTransaction(
+      txSign.toXDR()
+    );
 
     return res;
   } catch (e) {
@@ -151,7 +153,7 @@ async function invokeContract(network, contractId, operation, args) {
 
     const signedTx = txSign.toXDR();
 
-    const res = await sendWithFailover(signedTx, network);
+    const res = await server.sendTransaction(signedTx);
 
     return res;
   } catch (e) {
@@ -208,7 +210,9 @@ async function anyInvokeExternal(pubkey, network, contractId, operation, args) {
 
     txSign.sign(internalSigner);
 
-    const res = await sendWithFailover(txSign.toXDR(), network);
+    const res = await RpcServer(network, "json").sendTransaction(
+      txSign.toXDR()
+    );
 
     return res;
   } catch (e) {
@@ -293,7 +297,7 @@ async function invokeContractScVal(network, contractId, operation, invokeArgs) {
 
   const signedTx = txSign.toXDR();
 
-  const res = await sendWithFailover(signedTx, network);
+  const res = await server.sendTransaction(signedTx);
 
   return res;
 }
