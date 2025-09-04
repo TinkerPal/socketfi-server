@@ -678,6 +678,51 @@ app.post("/load-contract-specs", async (req, res) => {
   }
 });
 
+app.post("/access-load-wallet", async (req, res) => {
+  const { wallet, username, network } = req.body;
+
+  if ((!wallet && !network) || (!username && !network)) {
+    return res
+      .status(400)
+      .json({ error: "wallet address or username and network are  required" });
+  }
+
+  try {
+    let user;
+    if (wallet && network) {
+      user = await findUserByAddress(wallet, { network: network });
+      if (!user) {
+        return res.status(400).json({
+          error: "No account found with the entered wallet address.",
+        });
+      }
+    } else if (username && network) {
+      user = await getUserByUsername(username);
+      if (!user) {
+        return res.status(400).json({
+          error: "No account found with the entered username.",
+        });
+      }
+    }
+    const server = RpcServer(network, "json");
+    const spec = await server.getContractSpec(user.address[network]);
+
+    res.status(200).json({
+      message: "contract specs loaded successfully",
+      spec: spec,
+    });
+  } catch (error) {
+    console.error(
+      "Error:",
+      error.response ? error.response.data : error.message
+    );
+
+    return res.status(400).json({
+      error: error.response ? error.response.data : error.message,
+    });
+  }
+});
+
 app.post("/any-invoke-external", async (req, res) => {
   const {
     pubKey,
