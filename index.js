@@ -1190,6 +1190,8 @@ app.post("/any-invoke-with-sig", async (req, res) => {
       );
 
       const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
+
+      console.log("nonce", txNonce);
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
