@@ -299,6 +299,7 @@ async function invokeContractScVal(network, contractId, operation, invokeArgs) {
 }
 
 async function sendWithFailover(signedXdr, network) {
+  console.log("send ran");
   let lastError;
 
   // Try primary first
