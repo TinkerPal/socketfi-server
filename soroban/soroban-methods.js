@@ -7,6 +7,7 @@ const {
   TimeoutInfinite,
   Keypair,
   Memo,
+  Horizon,
   nativeToScVal,
 } = require("@stellar/stellar-sdk");
 
@@ -32,6 +33,14 @@ const serverUrl = {
 };
 
 const key = process.env.KEY;
+
+async function loadAccount(id, network) {
+  const account = await new Horizon.Server(
+    serverUrl.horizon[network.toLowerCase()]
+  ).loadAccount(id);
+
+  return account;
+}
 
 const { RpcServer, HorizonServer } = new StellarServers({
   key,
@@ -69,24 +78,20 @@ async function invokeCreate(network, contractId, operation, args) {
 
     const contract = new Contract(contractId);
 
-    const source = await RpcServer(network).getAccount(
-      internalSigner.publicKey()
-    );
+    // const source = await RpcServer(network).getAccount(
+    //   internalSigner.publicKey()
+    // );
+
+    const source = await loadAccount(internalSigner.publicKey(), network);
 
     const txBuilder = new TransactionBuilder(source, {
       fee: BASE_FEE,
       networkPassphrase: Networks[network],
     });
 
-    const memo = "";
-
     const tx = txBuilder
       .addOperation(contract.call(operation, ...invokeArgs))
       .setTimeout(TimeoutInfinite);
-
-    if (memo?.length > 0) {
-      tx.addMemo(Memo.text(memo));
-    }
 
     const builtTxXdr = tx.build().toXDR();
 
@@ -127,7 +132,8 @@ async function invokeContract(network, contractId, operation, args) {
 
     const server = RpcServer(network, "json");
 
-    const source = await server.getAccount(internalSigner.publicKey());
+    // const source = await server.getAccount(internalSigner.publicKey());
+    const source = await loadAccount(internalSigner.publicKey(), network);
 
     const contract = new Contract(contractId);
 
@@ -181,10 +187,11 @@ async function anyInvokeExternal(pubkey, network, contractId, operation, args) {
 
     const contract = new Contract(contractId);
 
-    const source = await RpcServer(network).getAccount(
-      internalSigner.publicKey()
-    );
+    // const source = await RpcServer(network).getAccount(
+    //   internalSigner.publicKey()
+    // );
 
+    const source = await loadAccount(internalSigner.publicKey(), network);
     const txBuilder = new TransactionBuilder(source, {
       fee: BASE_FEE,
       networkPassphrase: Networks[network],
@@ -239,7 +246,8 @@ async function contractGet(pubKey, network, contractId, operation, args) {
     }
 
     const server = RpcServer(network, "json");
-    const source = await server.getAccount(pubKey);
+    // const source = await server.getAccount(pubKey);
+    const source = await loadAccount(internalSigner.publicKey(), network);
     const txBuilder = new TransactionBuilder(source, {
       fee: BASE_FEE,
       networkPassphrase: Networks[network],
@@ -270,7 +278,8 @@ async function invokeContractScVal(network, contractId, operation, invokeArgs) {
   const memo = "";
   const server = RpcServer(network, "json");
   const contract = new Contract(contractId);
-  const source = await server.getAccount(internalSigner.publicKey());
+  // const source = await server.getAccount(internalSigner.publicKey());
+  const source = await loadAccount(internalSigner.publicKey(), network);
 
   const txBuilderAny = new TransactionBuilder(source, {
     fee: BASE_FEE,
