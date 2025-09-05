@@ -7,7 +7,6 @@ const {
   TimeoutInfinite,
   Keypair,
   Memo,
-  Horizon,
   nativeToScVal,
 } = require("@stellar/stellar-sdk");
 
@@ -24,7 +23,7 @@ const urlTest3 = "https://base-rpc-testnet.soro.build";
 const serverUrl = {
   rpc: {
     testnet: urlTest2,
-    public: url2,
+    public: url,
   },
   horizon: {
     testnet: `https://rpc.ankr.com/premium-http/stellar_testnet_horizon/${ankrKey}`,
@@ -79,9 +78,15 @@ async function invokeCreate(network, contractId, operation, args) {
       networkPassphrase: Networks[network],
     });
 
+    const memo = "";
+
     const tx = txBuilder
       .addOperation(contract.call(operation, ...invokeArgs))
       .setTimeout(TimeoutInfinite);
+
+    if (memo?.length > 0) {
+      tx.addMemo(Memo.text(memo));
+    }
 
     const builtTxXdr = tx.build().toXDR();
 
@@ -91,7 +96,9 @@ async function invokeCreate(network, contractId, operation, args) {
 
     txSign.sign(internalSigner);
 
-    const res = await sendWithFailover(txSign.toXDR(), network);
+    const res = await RpcServer(network, "json").sendTransaction(
+      txSign.toXDR()
+    );
 
     return res;
   } catch (e) {
@@ -146,7 +153,7 @@ async function invokeContract(network, contractId, operation, args) {
 
     const signedTx = txSign.toXDR();
 
-    const res = await sendWithFailover(signedTx, network);
+    const res = await server.sendTransaction(signedTx);
 
     return res;
   } catch (e) {
@@ -203,7 +210,9 @@ async function anyInvokeExternal(pubkey, network, contractId, operation, args) {
 
     txSign.sign(internalSigner);
 
-    const res = await sendWithFailover(txSign.toXDR(), network);
+    const res = await RpcServer(network, "json").sendTransaction(
+      txSign.toXDR()
+    );
 
     return res;
   } catch (e) {
@@ -288,13 +297,12 @@ async function invokeContractScVal(network, contractId, operation, invokeArgs) {
 
   const signedTx = txSign.toXDR();
 
-  const res = await sendWithFailover(signedTx, network);
+  const res = await server.sendTransaction(signedTx);
 
   return res;
 }
 
 async function sendWithFailover(signedXdr, network) {
-  console.log("send ran");
   let lastError;
 
   // Try primary first
