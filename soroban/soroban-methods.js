@@ -24,7 +24,7 @@ const urlTest3 = "https://base-rpc-testnet.soro.build";
 const serverUrl = {
   rpc: {
     testnet: urlTest2,
-    public: url,
+    public: url2,
   },
   horizon: {
     testnet: `https://rpc.ankr.com/premium-http/stellar_testnet_horizon/${ankrKey}`,
