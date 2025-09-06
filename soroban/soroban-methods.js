@@ -35,7 +35,7 @@ const serverUrl = {
 const key = process.env.KEY;
 
 const { RpcServer, HorizonServer } = new StellarServers({
-  key,
+  serverUrl,
 });
 
 const primaryServer = new StellarServers({
