@@ -101,106 +101,54 @@ async function invokeCreate(network, contractId, operation, args) {
   }
 }
 
-const q = new Map();
-const enqueue = (k, job) => {
-  const prev = q.get(k) || Promise.resolve();
-  const next = prev.then(job, job); // always continue chain
-  q.set(
-    k,
-    next.catch(() => {})
-  );
-  return next;
-};
-
-// async function invokeContract(network, contractId, operation, args) {
-//   try {
-//     const invokeArgs = [];
-
-//     for (const eachArg of args) {
-//       if (eachArg?.type === "Wasm") {
-//         const wasmUpload = bufferStorage[pubKey];
-
-//         if (!wasmUpload) {
-//           return res
-//             .status(400)
-//             .json({ error: "Wasm file not found in bufferStorage" });
-//         }
-
-//         invokeArgs.push(nativeToScVal(wasmUpload));
-//         // Don't delete bufferStorage[pubKey] yet; do it only after successful simulation
-//       } else {
-//         invokeArgs.push(processArgs(eachArg));
-//       }
-//     }
-
-//     const server = RpcServer(network, "json");
-//     const contract = new Contract(contractId);
-
-//     const source = await server.getAccount(internalSigner.publicKey());
-
-//     const txBuilderAny = new TransactionBuilder(source, {
-//       fee: BASE_FEE,
-//       networkPassphrase: Networks[network],
-//     })
-//       .setTimeout(TimeoutInfinite)
-//       .addOperation(contract.call(operation, ...invokeArgs));
-
-//     const txXdr = txBuilderAny.build().toXDR();
-
-//     const prepareTx = await server.prepareTransaction(txXdr);
-//     const txSign = TransactionBuilder.fromXDR(prepareTx, Networks[network]);
-
-//     txSign.sign(internalSigner);
-
-//     const signedTx = txSign.toXDR();
-
-//     const res = await server.sendTransaction(signedTx);
-
-//     return res;
-//   } catch (e) {
-//     console.log(e.message);
-//   }
-// }
-
 async function invokeContract(network, contractId, operation, args) {
-  const server = RpcServer(network, "json");
-  const contract = new Contract(contractId);
-  const sourceId = internalSigner.publicKey();
-
-  return enqueue(sourceId, async () => {
-    // build args (watch out for Express res shadowing)
+  try {
     const invokeArgs = [];
-    for (const a of args) {
-      if (a && a.type === "Wasm") {
-        const wasmUpload = bufferStorage[sourceId];
-        if (!wasmUpload) throw new Error("Wasm file not found");
+
+    for (const eachArg of args) {
+      if (eachArg?.type === "Wasm") {
+        const wasmUpload = bufferStorage[pubKey];
+
+        if (!wasmUpload) {
+          return res
+            .status(400)
+            .json({ error: "Wasm file not found in bufferStorage" });
+        }
+
         invokeArgs.push(nativeToScVal(wasmUpload));
+        // Don't delete bufferStorage[pubKey] yet; do it only after successful simulation
       } else {
-        invokeArgs.push(processArgs(a));
+        invokeArgs.push(processArgs(eachArg));
       }
     }
 
-    // source & builder (fresh Account object)
-    const info = await server.getAccount(sourceId);
-    const acc = new Account(sourceId, info.sequence);
+    const server = RpcServer(network, "json");
+    const contract = new Contract(contractId);
 
-    let tx = new TransactionBuilder(acc, {
+    const source = await server.getAccount(internalSigner.publicKey());
+
+    const txBuilderAny = new TransactionBuilder(source, {
       fee: BASE_FEE,
       networkPassphrase: Networks[network],
     })
-      .setTimeout(90) // reasonable, not infinite
-      .addOperation(contract.call(operation, ...invokeArgs))
-      .build();
+      .setTimeout(TimeoutInfinite)
+      .addOperation(contract.call(operation, ...invokeArgs));
 
-    // prepare (simulates + fills footprint/resource fee)
-    const preparedXdr = await server.prepareTransaction(tx.toXDR());
-    let prepared = TransactionBuilder.fromXDR(preparedXdr, Networks[network]);
+    const txXdr = txBuilderAny.build().toXDR();
 
-    prepared.sign(internalSigner); // payer/source signer
-    const submit = await server.sendTransaction(prepared.toXDR());
+    const prepareTx = await server.prepareTransaction(txXdr);
+    const txSign = TransactionBuilder.fromXDR(prepareTx, Networks[network]);
 
-    return submit;
-  });
+    txSign.sign(internalSigner);
+
+    const signedTx = txSign.toXDR();
+
+    const res = await server.sendTransaction(signedTx);
+
+    return res;
+  } catch (e) {
+    console.log(e.message);
+  }
 }
 
 async function contractGet(pubKey, network, contractId, operation, args) {
