@@ -183,6 +183,8 @@ async function invokeContract(network, contractId, operation, args) {
     console.log("fine here 1");
     // source & builder (fresh Account object)
     const info = await server.getAccount(sourceId);
+
+    console.log("the info", info);
     const acc = new Account(sourceId, info.sequence);
 
     let tx = new TransactionBuilder(acc, {
