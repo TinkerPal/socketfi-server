@@ -101,11 +101,10 @@ async function invokeCreate(network, contractId, operation, args) {
   }
 }
 
-// --- tiny helpers -----------------------------------------------------------
 const q = new Map();
 const enqueue = (k, job) => {
   const prev = q.get(k) || Promise.resolve();
-  const next = prev.then(job, job);
+  const next = prev.then(job, job); // always continue chain
   q.set(
     k,
     next.catch(() => {})
@@ -113,132 +112,93 @@ const enqueue = (k, job) => {
   return next;
 };
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// async function invokeContract(network, contractId, operation, args) {
+//   try {
+//     const invokeArgs = [];
 
-async function sendWithTimeout(promise, ms) {
-  let t;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise(
-        (_, rej) =>
-          (t = setTimeout(() => rej(new Error("WATCHDOG_TIMEOUT")), ms))
-      ),
-    ]);
-  } finally {
-    if (t) clearTimeout(t);
-  }
-}
+//     for (const eachArg of args) {
+//       if (eachArg?.type === "Wasm") {
+//         const wasmUpload = bufferStorage[pubKey];
 
-// Optional: if your server doesn’t already poll, use this
-async function pollForFinality(
-  server,
-  hashHex,
-  { tries = 15, delayMs = 1000 } = {}
-) {
-  for (let i = 0; i < tries; i++) {
-    try {
-      const r = await server.getTransaction(hashHex);
-      if (r && (r.status === "SUCCESS" || r.status === "FAILED")) return r;
-    } catch (_) {}
-    await sleep(delayMs);
-  }
-  return null;
-}
+//         if (!wasmUpload) {
+//           return res
+//             .status(400)
+//             .json({ error: "Wasm file not found in bufferStorage" });
+//         }
 
-// --- main entry -------------------------------------------------------------
-async function invokeContract(network, contractId, operation, args, opts = {}) {
-  const {
-    watchdogMs = 10_000, // trigger fee-bump if not settled/responded by then
-    bumpFactor = 10, // ≥10x to replace mempool entry
-    bumpFloorStroops = 1_000_000, // hard floor (tune to your budget)
-  } = opts;
+//         invokeArgs.push(nativeToScVal(wasmUpload));
+//         // Don't delete bufferStorage[pubKey] yet; do it only after successful simulation
+//       } else {
+//         invokeArgs.push(processArgs(eachArg));
+//       }
+//     }
 
+//     const server = RpcServer(network, "json");
+//     const contract = new Contract(contractId);
+
+//     const source = await server.getAccount(internalSigner.publicKey());
+
+//     const txBuilderAny = new TransactionBuilder(source, {
+//       fee: BASE_FEE,
+//       networkPassphrase: Networks[network],
+//     })
+//       .setTimeout(TimeoutInfinite)
+//       .addOperation(contract.call(operation, ...invokeArgs));
+
+//     const txXdr = txBuilderAny.build().toXDR();
+
+//     const prepareTx = await server.prepareTransaction(txXdr);
+//     const txSign = TransactionBuilder.fromXDR(prepareTx, Networks[network]);
+
+//     txSign.sign(internalSigner);
+
+//     const signedTx = txSign.toXDR();
+
+//     const res = await server.sendTransaction(signedTx);
+
+//     return res;
+//   } catch (e) {
+//     console.log(e.message);
+//   }
+// }
+
+async function invokeContract(network, contractId, operation, args) {
   const server = RpcServer(network, "json");
   const contract = new Contract(contractId);
+  const sourceId = internalSigner.publicKey();
 
-  // PAYER (g-account) — also used as inner source in your current flow
-  const payerKeypair = internalSigner;
-  const payerId = payerKeypair.publicKey();
-
-  // IMPORTANT: queue by the account whose sequence is used.
-  // If inner source ≠ payer, queue by the INNER source instead.
-  return enqueue(payerId, async () => {
-    // -- 1) Build args -------------------------------------------------------
+  return enqueue(sourceId, async () => {
+    // build args (watch out for Express res shadowing)
     const invokeArgs = [];
-    for (const a of args || []) {
+    for (const a of args) {
       if (a && a.type === "Wasm") {
-        const wasmUpload = bufferStorage[payerId]; // or bufferStorage[walletId] if inner ≠ payer
-        if (!wasmUpload)
-          throw new Error("Wasm file not found in bufferStorage");
+        const wasmUpload = bufferStorage[sourceId];
+        if (!wasmUpload) throw new Error("Wasm file not found");
         invokeArgs.push(nativeToScVal(wasmUpload));
       } else {
         invokeArgs.push(processArgs(a));
       }
     }
 
-    // -- 2) Build INNER tx (source = payer in your code)
-    // If inner source ≠ payer, fetch that account here instead:
-    // const innerSourceId = walletId; const source = await server.getAccount(innerSourceId);
-    const source = await server.getAccount(payerId);
+    // source & builder (fresh Account object)
+    const source = await server.getAccount(sourceId);
 
-    let inner = new TransactionBuilder(source, {
+    let tx = new TransactionBuilder(source, {
       fee: BASE_FEE,
       networkPassphrase: Networks[network],
     })
-      .setTimeout(90)
+      .setTimeout(90) // reasonable, not infinite
       .addOperation(contract.call(operation, ...invokeArgs))
       .build();
 
-    // -- 3) Prepare (simulate + footprint/resource fee)
-    const preparedXdr = await server.prepareTransaction(inner.toXDR());
-    inner = TransactionBuilder.fromXDR(preparedXdr, Networks[network]);
+    // prepare (simulates + fills footprint/resource fee)
+    const preparedXdr = await server.prepareTransaction(tx.toXDR());
+    let prepared = TransactionBuilder.fromXDR(preparedXdr, Networks[network]);
 
-    // -- 4) Sign INNER
-    // If the inner source is a *user wallet*, sign with that wallet instead:
-    // inner.sign(userWalletKeypair);
-    inner.sign(payerKeypair);
+    prepared.sign(internalSigner); // payer/source signer
+    const submit = await server.sendTransaction(prepared.toXDR());
 
-    const innerHashHex = inner.hash(Networks[network]).toString("hex");
-
-    // -- 5) Try sending inner with watchdog
-    let firstRes;
-    try {
-      firstRes = await sendWithTimeout(
-        server.sendTransaction(inner.toXDR()),
-        watchdogMs
-      );
-      // If your server.sendTransaction already polls to finality, it should return SUCCESS/FAILED here.
-      if (firstRes && firstRes.status && firstRes.status !== "PENDING")
-        return firstRes;
-    } catch (e) {
-      if (e.message !== "WATCHDOG_TIMEOUT") throw e; // real error => bubble up
-      // Else fall through to fee-bump
-    }
-
-    // (Optional) quick peek if inner already finalized while we timed out
-    try {
-      const maybe = await server.getTransaction(innerHashHex);
-      if (maybe?.status === "SUCCESS" || maybe?.status === "FAILED")
-        return maybe;
-    } catch (_) {}
-
-    // -- 6) Fee-bump fallback (rebid much higher)
-    const innerFee = parseInt(inner.fee, 10) || 0;
-    const maxFee = Math.max(Math.ceil(innerFee * bumpFactor), bumpFloorStroops);
-
-    let feeBump = TransactionBuilder.buildFeeBumpTransaction(
-      payerId, // fee source (g-account)
-      maxFee, // total fee in stroops
-      inner, // the prepared & signed inner
-      Networks[network]
-    );
-    feeBump.sign(payerKeypair);
-
-    const fbRes = await server.sendTransaction(feeBump.toXDR());
-    if (fbRes && fbRes.status && fbRes.status !== "PENDING") return fbRes;
-
-    return fbRes || { status: "PENDING", innerHash: innerHashHex };
+    return submit;
   });
 }
 
