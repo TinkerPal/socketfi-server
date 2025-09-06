@@ -208,7 +208,7 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
         server.sendTransaction(inner.toXDR()),
         watchdogMs
       );
-      // If your server.sendTransaction already polls to finality, it should return SUCCESS/FAILED here.
+
       if (firstRes && firstRes.status && firstRes.status !== "PENDING")
         return firstRes;
     } catch (e) {
@@ -235,7 +235,10 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
     );
     feeBump.sign(payerKeypair);
 
+    console.log("fee bumb submission");
+
     const fbRes = await server.sendTransaction(feeBump.toXDR());
+
     if (fbRes && fbRes.status && fbRes.status !== "PENDING") return fbRes;
 
     return fbRes || { status: "PENDING", innerHash: innerHashHex };
