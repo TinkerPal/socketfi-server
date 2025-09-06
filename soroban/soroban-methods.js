@@ -149,7 +149,7 @@ async function pollForFinality(
 // --- main entry -------------------------------------------------------------
 async function invokeContract(network, contractId, operation, args, opts = {}) {
   const {
-    watchdogMs = 10_000, // trigger fee-bump if not settled/responded by then
+    watchdogMs = 8_000, // trigger fee-bump if not settled/responded by then
     bumpFactor = 10, // ≥10x to replace mempool entry
     bumpFloorStroops = 2_000_000, // hard floor (tune to your budget)
   } = opts;
