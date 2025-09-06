@@ -180,6 +180,7 @@ async function invokeContract(network, contractId, operation, args) {
       }
     }
 
+    console.log("fine here 1");
     // source & builder (fresh Account object)
     const info = await server.getAccount(sourceId);
     const acc = new Account(sourceId, info.sequence);
@@ -191,6 +192,8 @@ async function invokeContract(network, contractId, operation, args) {
       .setTimeout(90) // reasonable, not infinite
       .addOperation(contract.call(operation, ...invokeArgs))
       .build();
+
+    console.log("fine here 2");
 
     // prepare (simulates + fills footprint/resource fee)
     const preparedXdr = await server.prepareTransaction(tx.toXDR());

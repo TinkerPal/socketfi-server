@@ -1058,16 +1058,15 @@ app.post("/init-sign-transaction", async (req, res) => {
 });
 
 app.post("/any-invoke-with-sig", async (req, res) => {
+  const {
+    contractId,
+    network,
+    callFunction,
+    sigData,
+    txDetails = null,
+    sId = "",
+  } = req.body;
   try {
-    const {
-      contractId,
-      network,
-      callFunction,
-      sigData,
-      txDetails = null,
-      sId = "",
-    } = req.body;
-
     progress.push(sId, {
       step: "transaction creation",
       status: "start",
