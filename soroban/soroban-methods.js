@@ -35,7 +35,7 @@ const serverUrl = {
 const key = process.env.KEY;
 
 const { RpcServer, HorizonServer } = new StellarServers({
-  serverUrl,
+  key,
 });
 
 const primaryServer = new StellarServers({
@@ -151,7 +151,7 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
   const {
     watchdogMs = 10_000, // trigger fee-bump if not settled/responded by then
     bumpFactor = 10, // ≥10x to replace mempool entry
-    bumpFloorStroops = 1_000_000, // hard floor (tune to your budget)
+    bumpFloorStroops = 2_000_000, // hard floor (tune to your budget)
   } = opts;
 
   const server = RpcServer(network, "json");
