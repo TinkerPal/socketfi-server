@@ -238,6 +238,109 @@ async function pollForFinality(
 //   });
 // }
 
+// async function invokeContract(network, contractId, operation, args, opts = {}) {
+//   const {
+//     watchdogMs = 8_000, // trigger fee-bump if not settled/responded by then
+//     bumpFactor = 10, // ≥10x to replace mempool entry
+//     bumpFloorStroops = 2_000_000, // hard floor (tune to your budget)
+//   } = opts;
+
+//   const server = RpcServer(network, "json");
+//   const contract = new Contract(contractId);
+
+//   // PAYER (g-account) — also used as inner source in your current flow
+//   const payerKeypair = internalSigner;
+//   const payerId = payerKeypair.publicKey();
+
+//   // helper: timeout wrapper
+//   async function sendWithTimeout(promise, ms) {
+//     let timeoutId;
+//     const timeout = new Promise((_, reject) => {
+//       timeoutId = setTimeout(() => reject(new Error("WATCHDOG_TIMEOUT")), ms);
+//     });
+
+//     try {
+//       return await Promise.race([promise, timeout]);
+//     } finally {
+//       clearTimeout(timeoutId);
+//     }
+//   }
+
+//   // IMPORTANT: queue by the account whose sequence is used.
+//   // If inner source ≠ payer, queue by the INNER source instead.
+//   return enqueue(payerId, async () => {
+//     // -- 1) Build args -------------------------------------------------------
+//     const invokeArgs = [];
+//     for (const a of args || []) {
+//       if (a && a.type === "Wasm") {
+//         const wasmUpload = bufferStorage[payerId]; // or bufferStorage[walletId] if inner ≠ payer
+//         if (!wasmUpload)
+//           throw new Error("Wasm file not found in bufferStorage");
+//         invokeArgs.push(nativeToScVal(wasmUpload));
+//       } else {
+//         invokeArgs.push(processArgs(a));
+//       }
+//     }
+
+//     // -- 2) Build INNER tx (source = payer in your code)
+//     const source = await server.getAccount(payerId);
+
+//     let inner = new TransactionBuilder(source, {
+//       fee: BASE_FEE,
+//       networkPassphrase: Networks[network],
+//     })
+//       .setTimeout(90)
+//       .addOperation(contract.call(operation, ...invokeArgs))
+//       .build();
+
+//     // -- 3) Prepare (simulate + footprint/resource fee)
+//     const preparedXdr = await server.prepareTransaction(inner.toXDR());
+//     inner = TransactionBuilder.fromXDR(preparedXdr, Networks[network]);
+
+//     // -- 4) Sign INNER
+//     inner.sign(payerKeypair);
+
+//     const innerHashHex = inner.hash(Networks[network]).toString("hex");
+
+//     // -- 5) Try sending inner with watchdog
+//     let firstRes;
+//     try {
+//       firstRes = await sendWithTimeout(
+//         server.sendTransaction(inner.toXDR()), // your blocking version
+//         watchdogMs
+//       );
+
+//       // If it resolved with a final state, return
+//       if (firstRes && firstRes.status && firstRes.status !== "PENDING") {
+//         return firstRes;
+//       }
+//     } catch (e) {
+//       if (e.message !== "WATCHDOG_TIMEOUT") throw e; // real error => bubble up
+//       // Else fall through to fee-bump
+//     }
+
+//     // -- 6) Fee-bump fallback (rebid much higher)
+//     const innerFee = parseInt(inner.fee, 10) || 0;
+//     const maxFee = Math.max(Math.ceil(innerFee * bumpFactor), bumpFloorStroops);
+
+//     let feeBump = TransactionBuilder.buildFeeBumpTransaction(
+//       payerId, // fee source (g-account)
+//       maxFee, // total fee in stroops
+//       inner, // the prepared & signed inner
+//       Networks[network]
+//     );
+//     feeBump.sign(payerKeypair);
+
+//     console.log("fee bump submission");
+
+//     const fbRes = await server.sendTransaction(feeBump.toXDR());
+
+//     if (fbRes && fbRes.status && fbRes.status !== "PENDING") return fbRes;
+
+//     return fbRes || { status: "PENDING", innerHash: innerHashHex };
+//   });
+// }
+
 async function invokeContract(network, contractId, operation, args, opts = {}) {
   const {
     watchdogMs = 8_000, // trigger fee-bump if not settled/responded by then
@@ -252,22 +355,7 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
   const payerKeypair = internalSigner;
   const payerId = payerKeypair.publicKey();
 
-  // helper: timeout wrapper
-  async function sendWithTimeout(promise, ms) {
-    let timeoutId;
-    const timeout = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error("WATCHDOG_TIMEOUT")), ms);
-    });
-
-    try {
-      return await Promise.race([promise, timeout]);
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
   // IMPORTANT: queue by the account whose sequence is used.
-  // If inner source ≠ payer, queue by the INNER source instead.
   return enqueue(payerId, async () => {
     // -- 1) Build args -------------------------------------------------------
     const invokeArgs = [];
@@ -302,21 +390,38 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
 
     const innerHashHex = inner.hash(Networks[network]).toString("hex");
 
-    // -- 5) Try sending inner with watchdog
+    // -- 5) Send INNER with watchdog -----------------------------------------
+    let settled = false;
+    const txPromise = server
+      .sendTransaction(inner.toXDR())
+      .then((res) => {
+        settled = true;
+        return res;
+      })
+      .catch((err) => {
+        settled = true;
+        throw err;
+      });
+
     let firstRes;
     try {
-      firstRes = await sendWithTimeout(
-        server.sendTransaction(inner.toXDR()), // your blocking version
-        watchdogMs
-      );
+      firstRes = await Promise.race([
+        txPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => {
+            if (!settled) reject(new Error("WATCHDOG_TIMEOUT"));
+          }, watchdogMs)
+        ),
+      ]);
 
-      // If it resolved with a final state, return
+      // If we got a resolved result, return it
       if (firstRes && firstRes.status && firstRes.status !== "PENDING") {
         return firstRes;
       }
     } catch (e) {
-      if (e.message !== "WATCHDOG_TIMEOUT") throw e; // real error => bubble up
+      if (e.message !== "WATCHDOG_TIMEOUT") throw e;
       // Else fall through to fee-bump
+      console.log("Trigger fee bump!");
     }
 
     // -- 6) Fee-bump fallback (rebid much higher)
