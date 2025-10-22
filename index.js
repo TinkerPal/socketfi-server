@@ -215,13 +215,17 @@ app.post("/verify-auth", async (req, res) => {
   const { authData, id, network = "" } = req.body;
 
   console.log("the verify-auth body", req.body);
+
+  console.log("fine 1");
   try {
     const authInfo = JSON.parse(req?.cookies?.authInfo);
 
+    console.log("fine 2");
     if (!authInfo) {
       return res.status(400).json({ error: "Auth info not found" });
     }
 
+    console.log("fine 3");
     if (isReservedUsername(authInfo.username)) {
       return res.status(409).json({
         ok: false,
@@ -268,6 +272,8 @@ app.post("/verify-auth", async (req, res) => {
             status: "start",
             detail: "Fetching User's Information",
           });
+
+          console.log("fine here 10");
 
           const clientUser = {
             username: user.username,
