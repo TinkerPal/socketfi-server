@@ -213,6 +213,8 @@ app.post("/init-auth", async (req, res) => {
 
 app.post("/verify-auth", async (req, res) => {
   const { authData, id, network = "" } = req.body;
+
+  console.log("the verify-auth body", req.body);
   try {
     const authInfo = JSON.parse(req?.cookies?.authInfo);
 
