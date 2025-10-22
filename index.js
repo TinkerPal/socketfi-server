@@ -250,6 +250,7 @@ app.post("/verify-auth", async (req, res) => {
       });
 
       if (areEqual) {
+        console.log("fine 5");
         const verification = await verifyAuthenticationResponse({
           response: authData,
           expectedChallenge: authInfo.challenge,
@@ -264,6 +265,8 @@ app.post("/verify-auth", async (req, res) => {
             transports: user.passkey.transports,
           },
         });
+
+        console.log("fine 6");
 
         if (verification.verified) {
           const accessToken = await user.generateAuthToken();
