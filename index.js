@@ -251,20 +251,28 @@ app.post("/verify-auth", async (req, res) => {
 
       if (areEqual) {
         console.log("fine 5");
-        const verification = await verifyAuthenticationResponse({
-          response: authData,
-          expectedChallenge: authInfo.challenge,
-          expectedOrigin: CLIENT_URL,
-          expectedRPID: rp_id,
-          authenticator: {
-            credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
-            credentialPublicKey: new Uint8Array(
-              Buffer.from(user?.passkey?.publicKey, "hex")
-            ),
-            counter: user.passkey.counter,
-            transports: user.passkey.transports,
-          },
-        });
+        let verification;
+
+        try {
+          verification = await verifyAuthenticationResponse({
+            response: authData,
+            expectedChallenge: authInfo.challenge,
+            expectedOrigin: CLIENT_URL,
+            expectedRPID: rp_id,
+            authenticator: {
+              credentialID: new Uint8Array(
+                Buffer.from(user?.passkey?.id, "hex")
+              ),
+              credentialPublicKey: new Uint8Array(
+                Buffer.from(user?.passkey?.publicKey, "hex")
+              ),
+              counter: user.passkey.counter,
+              transports: user.passkey.transports,
+            },
+          });
+        } catch (e) {
+          console.log("the verification error", e);
+        }
 
         console.log("fine 6");
 
