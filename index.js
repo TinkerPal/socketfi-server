@@ -217,7 +217,7 @@ app.post("/verify-auth", async (req, res) => {
   console.log("the verify-auth body", req.body);
 
   console.log("fine 1a", req?.headers);
-  console.log("fine 1", req?.cookies);
+  console.log("fine 1", Object.keys(req?.cookies));
   try {
     const authInfo = JSON.parse(req?.cookies?.authInfo);
 
