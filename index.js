@@ -86,6 +86,10 @@ const allowedOrigins = [
 
 const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
 const rp_id = process.env.RP_ID || "localhost";
+const expectedOrigin = [
+  CLIENT_URL,
+  "android:apk-key-hash:nUBmf6HB48iZc6HdxHVr7fPSg8ff1gG6xTkK3e0CbQ4",
+];
 
 app.use(
   cors({
@@ -257,7 +261,7 @@ app.post("/verify-auth", async (req, res) => {
           verification = await verifyAuthenticationResponse({
             response: authData,
             expectedChallenge: authInfo.challenge,
-            expectedOrigin: CLIENT_URL,
+            expectedOrigin: expectedOrigin,
             expectedRPID: rp_id,
             authenticator: {
               credentialID: new Uint8Array(
@@ -314,7 +318,7 @@ app.post("/verify-auth", async (req, res) => {
     const verification = await verifyRegistrationResponse({
       response: authData,
       expectedChallenge: authInfo.challenge,
-      expectedOrigin: CLIENT_URL,
+      expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
     });
 
@@ -558,7 +562,7 @@ app.post("/activate-account", async (req, res) => {
     const verification = await verifyAuthenticationResponse({
       response: activationData,
       expectedChallenge: activationInfo.challenge,
-      expectedOrigin: CLIENT_URL,
+      expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
@@ -1157,7 +1161,7 @@ app.post("/any-invoke-with-sig", async (req, res) => {
     const verification = await verifyAuthenticationResponse({
       response: sigData,
       expectedChallenge: signInfo.challenge,
-      expectedOrigin: CLIENT_URL,
+      expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
@@ -1373,7 +1377,7 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
     const verification = await verifyAuthenticationResponse({
       response: sigData,
       expectedChallenge: signInfo.challenge,
-      expectedOrigin: CLIENT_URL,
+      expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
@@ -1657,7 +1661,7 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
     const verification = await verifyAuthenticationResponse({
       response: sigData,
       expectedChallenge: signInfo.challenge,
-      expectedOrigin: CLIENT_URL,
+      expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
@@ -1945,7 +1949,7 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
     const verification = await verifyAuthenticationResponse({
       response: sigData,
       expectedChallenge: signInfo.challenge,
-      expectedOrigin: CLIENT_URL,
+      expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
