@@ -112,6 +112,20 @@ app.use(
   })
 );
 
+/**
+ * @swagger
+ * /process/progress/{id}:
+ *   get:
+ *     tags: [Misc]
+ *     summary: Server-Sent Events stream for progress updates
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, example: progress-123 }
+ *     responses:
+ *       200: { description: "SSE stream" }
+ */
 app.get("/process/progress/:id", sseProgress);
 
 /**

@@ -170,7 +170,7 @@ const options = {
     ],
   },
   // Tell swagger-jsdoc where to look for route JSDoc comments
-  apis: ["./index.js", "./routes/*.js"], // adjust to your file names
+  apis: ["./index.js", "/docs/**/**/*.js", "./routes/*.js"], // adjust to your file names
 };
 
 const swaggerSpec = swaggerJSDoc(options);
