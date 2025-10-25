@@ -4,7 +4,7 @@ const swaggerJSDoc = require("swagger-jsdoc");
 const servers =
   process.env.MODE === "PRODUCTION"
     ? [
-        { url: "https://socketfi.com", description: "Prod (root)" },
+        { url: "https://server.socket.fi", description: "Prod (root)" },
         { url: "https://app.socket.fi", description: "Prod (app)" },
       ]
     : [{ url: "http://localhost:3000", description: "Local" }];
