@@ -5,6 +5,9 @@ const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const { randomUUID } = require("crypto");
 const mongoose = require("mongoose");
+const swaggerUi = require("swagger-ui-express");
+const { swaggerSpec } = require("./swagger");
+
 const {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -97,6 +100,15 @@ app.use(
     methods: ["GET", "POST"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  })
+);
+
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    explorer: true,
+    customSiteTitle: "SocketFi API Docs",
   })
 );
 
@@ -218,19 +230,13 @@ app.post("/init-auth", async (req, res) => {
 app.post("/verify-auth", async (req, res) => {
   const { authData, id, network = "" } = req.body;
 
-  console.log("the verify-auth body", req.body);
-
-  console.log("fine 1a", req?.headers);
-  console.log("fine 1", req?.cookies);
   try {
     const authInfo = JSON.parse(req?.cookies?.authInfo);
 
-    console.log("fine 2");
     if (!authInfo) {
       return res.status(400).json({ error: "Auth info not found" });
     }
 
-    console.log("fine 3", authInfo);
     if (isReservedUsername(authInfo.username)) {
       return res.status(409).json({
         ok: false,
@@ -254,7 +260,6 @@ app.post("/verify-auth", async (req, res) => {
       });
 
       if (areEqual) {
-        console.log("fine 5");
         let verification;
 
         try {
@@ -278,8 +283,6 @@ app.post("/verify-auth", async (req, res) => {
           console.log("the verification error", e);
         }
 
-        console.log("fine 6");
-
         if (verification.verified) {
           const accessToken = await user.generateAuthToken();
 
@@ -288,8 +291,6 @@ app.post("/verify-auth", async (req, res) => {
             status: "start",
             detail: "Fetching User's Information",
           });
-
-          console.log("fine here 10");
 
           const clientUser = {
             username: user.username,
@@ -1214,7 +1215,6 @@ app.post("/any-invoke-with-sig", async (req, res) => {
 
       const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
 
-      console.log("nonce", txNonce);
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
