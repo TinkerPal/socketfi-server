@@ -306,6 +306,8 @@ app.post("/verify-auth", async (req, res) => {
             detail: "Login verification successful",
           });
 
+          console.log("the access token", accessToken);
+
           res.clearCookie("authInfo");
           return res.json({
             verified: verification.verified,
