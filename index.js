@@ -114,6 +114,34 @@ app.use(
 
 app.get("/process/progress/:id", sseProgress);
 
+/**
+ * @swagger
+ * /auth/get-account:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Check username availability or fetch basic account info
+ *     parameters:
+ *       - in: query
+ *         name: username
+ *         schema: { type: string, example: alaa_dev }
+ *         required: true
+ *     responses:
+ *       200:
+ *         description: Availability or basic info
+ *         content:
+ *           application/json:
+ *             examples:
+ *               available:
+ *                 value: { description: "Username available — sign up to claim it", existingUser: false, id: "" }
+ *               taken:
+ *                 value: { description: "Username taken — log in if it’s yours", existingUser: true, id: "USER_ID_123" }
+ *       400:
+ *         description: Bad input
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ErrorResponse' }
+ */
+
 app.get("/auth/get-account", async (req, res) => {
   const { username } = req.query; // use query parameters for GET
 
