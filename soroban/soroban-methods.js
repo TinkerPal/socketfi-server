@@ -11,7 +11,7 @@ const {
   Account,
 } = require("@stellar/stellar-sdk");
 
-export const BASE_FEE = "1000000";
+const BASE_FEE = "1000000";
 
 const { processArgs } = require("./utils");
 
@@ -369,4 +369,5 @@ module.exports = {
   contractGet,
   invokeContract,
   invokeContractScVal,
+  BASE_FEE,
 };
