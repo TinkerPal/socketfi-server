@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SERVICE_NAME="socketfi-server"
-APP_DIR="/home/tinkerpal/socket-server"
+APP_DIR="/home/tinkerpal/socketfi-server"
 REPO_URL="git@github.com:TinkerPal/socketfi-server.git"
 DOCKER_BIN="/usr/bin/docker"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
