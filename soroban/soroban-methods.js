@@ -1,14 +1,14 @@
 require("dotenv").config({ quiet: true });
 const {
-  Contract,
-  TransactionBuilder,
+	Contract,
+	TransactionBuilder,
 
-  Networks,
-  TimeoutInfinite,
-  Keypair,
-  Memo,
-  nativeToScVal,
-  Account,
+	Networks,
+	TimeoutInfinite,
+	Keypair,
+	Memo,
+	nativeToScVal,
+	Account,
 } = require("@stellar/stellar-sdk");
 
 const BASE_FEE = "1000000";
@@ -24,350 +24,350 @@ const urlTest2 = "https://soroban-testnet.stellar.org:443";
 
 const urlTest3 = "https://base-rpc-testnet.soro.build";
 const serverUrl = {
-  rpc: {
-    testnet: urlTest2,
-    public: url,
-  },
-  horizon: {
-    testnet: `https://rpc.ankr.com/premium-http/stellar_testnet_horizon/${ankrKey}`,
-    public: `https://rpc.ankr.com/premium-http/stellar_horizon/${ankrKey}`,
-  },
+	rpc: {
+		testnet: urlTest2,
+		public: url,
+	},
+	horizon: {
+		testnet: `https://rpc.ankr.com/premium-http/stellar_testnet_horizon/${ankrKey}`,
+		public: `https://rpc.ankr.com/premium-http/stellar_horizon/${ankrKey}`,
+	},
 };
 
 const key = process.env.KEY;
 
 const { RpcServer, HorizonServer } = new StellarServers({
-  serverUrl,
+	serverUrl,
 });
 
 const primaryServer = new StellarServers({
-  serverUrl,
+	serverUrl,
 }).RpcServer;
 
 const secondaryServer = new StellarServers({
-  key,
+	key,
 }).RpcServer;
 
 const internalSigner = Keypair.fromSecret(process.env.SIGNER_PRIVATE_KEY);
 
 async function invokeCreate(network, contractId, operation, args) {
-  try {
-    const invokeArgs = [];
+	try {
+		const invokeArgs = [];
 
-    for (const eachArg of args) {
-      if (eachArg?.type === "Wasm") {
-        const wasmUpload = bufferStorage[pubKey];
+		for (const eachArg of args) {
+			if (eachArg?.type === "Wasm") {
+				const wasmUpload = bufferStorage[pubKey];
 
-        if (!wasmUpload) {
-          return res
-            .status(400)
-            .json({ error: "Wasm file not found in bufferStorage" });
-        }
+				if (!wasmUpload) {
+					return res
+						.status(400)
+						.json({ error: "Wasm file not found in bufferStorage" });
+				}
 
-        invokeArgs.push(nativeToScVal(wasmUpload));
-      } else {
-        invokeArgs.push(processArgs(eachArg));
-      }
-    }
+				invokeArgs.push(nativeToScVal(wasmUpload));
+			} else {
+				invokeArgs.push(processArgs(eachArg));
+			}
+		}
 
-    const contract = new Contract(contractId);
+		const contract = new Contract(contractId);
 
-    const source = await RpcServer(network).getAccount(
-      internalSigner.publicKey()
-    );
+		const source = await RpcServer(network).getAccount(
+			internalSigner.publicKey(),
+		);
 
-    const txBuilder = new TransactionBuilder(source, {
-      fee: BASE_FEE,
-      networkPassphrase: Networks[network],
-    });
+		const txBuilder = new TransactionBuilder(source, {
+			fee: BASE_FEE,
+			networkPassphrase: Networks[network],
+		});
 
-    const tx = txBuilder
-      .addOperation(contract.call(operation, ...invokeArgs))
-      .setTimeout(TimeoutInfinite);
+		const tx = txBuilder
+			.addOperation(contract.call(operation, ...invokeArgs))
+			.setTimeout(TimeoutInfinite);
 
-    const builtTxXdr = tx.build().toXDR();
+		const builtTxXdr = tx.build().toXDR();
 
-    const prepareTx = await RpcServer(network).prepareTransaction(builtTxXdr);
+		const prepareTx = await RpcServer(network).prepareTransaction(builtTxXdr);
 
-    const txSign = TransactionBuilder.fromXDR(prepareTx, Networks[network]);
+		const txSign = TransactionBuilder.fromXDR(prepareTx, Networks[network]);
 
-    txSign.sign(internalSigner);
+		txSign.sign(internalSigner);
 
-    const res = await RpcServer(network, "json").sendTransaction(
-      txSign.toXDR()
-    );
+		const res = await RpcServer(network, "json").sendTransaction(
+			txSign.toXDR(),
+		);
 
-    return res;
-  } catch (e) {
-    console.log(e.message);
-  }
+		return res;
+	} catch (e) {
+		console.log(e.message);
+	}
 }
 
 // --- tiny helpers -----------------------------------------------------------
 const q = new Map();
 const enqueue = (k, job) => {
-  const prev = q.get(k) || Promise.resolve();
-  const next = prev.then(job, job);
-  q.set(
-    k,
-    next.catch(() => {})
-  );
-  return next;
+	const prev = q.get(k) || Promise.resolve();
+	const next = prev.then(job, job);
+	q.set(
+		k,
+		next.catch(() => {}),
+	);
+	return next;
 };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function sendWithTimeout(promise, ms) {
-  let t;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise(
-        (_, rej) =>
-          (t = setTimeout(() => rej(new Error("WATCHDOG_TIMEOUT")), ms))
-      ),
-    ]);
-  } finally {
-    if (t) clearTimeout(t);
-  }
+	let t;
+	try {
+		return await Promise.race([
+			promise,
+			new Promise(
+				(_, rej) =>
+					(t = setTimeout(() => rej(new Error("WATCHDOG_TIMEOUT")), ms)),
+			),
+		]);
+	} finally {
+		if (t) clearTimeout(t);
+	}
 }
 
 // Optional: if your server doesn’t already poll, use this
 async function pollForFinality(
-  server,
-  hashHex,
-  { tries = 15, delayMs = 1000 } = {}
+	server,
+	hashHex,
+	{ tries = 15, delayMs = 1000 } = {},
 ) {
-  for (let i = 0; i < tries; i++) {
-    try {
-      const r = await server.getTransaction(hashHex);
-      if (r && (r.status === "SUCCESS" || r.status === "FAILED")) return r;
-    } catch (_) {}
-    await sleep(delayMs);
-  }
-  return null;
+	for (let i = 0; i < tries; i++) {
+		try {
+			const r = await server.getTransaction(hashHex);
+			if (r && (r.status === "SUCCESS" || r.status === "FAILED")) return r;
+		} catch (_) {}
+		await sleep(delayMs);
+	}
+	return null;
 }
 
 async function invokeContract(network, contractId, operation, args, opts = {}) {
-  const {
-    watchdogMs = 8_000, // trigger fee-bump if not settled/responded by then
-    bumpFactor = 10, // ≥10x to replace mempool entry
-    bumpFloorStroops = 2_000_000, // hard floor (tune to your budget)
-  } = opts;
+	const {
+		watchdogMs = 8_000, // trigger fee-bump if not settled/responded by then
+		bumpFactor = 10, // ≥10x to replace mempool entry
+		bumpFloorStroops = 2_000_000, // hard floor (tune to your budget)
+	} = opts;
 
-  const server = RpcServer(network, "json");
-  const contract = new Contract(contractId);
+	const server = RpcServer(network, "json");
+	const contract = new Contract(contractId);
 
-  // PAYER (g-account) — also used as inner source in your current flow
-  const payerKeypair = internalSigner;
-  const payerId = payerKeypair.publicKey();
+	// PAYER (g-account) — also used as inner source in your current flow
+	const payerKeypair = internalSigner;
+	const payerId = payerKeypair.publicKey();
 
-  // IMPORTANT: queue by the account whose sequence is used.
-  return enqueue(payerId, async () => {
-    // -- 1) Build args -------------------------------------------------------
-    const invokeArgs = [];
-    for (const a of args || []) {
-      if (a && a.type === "Wasm") {
-        const wasmUpload = bufferStorage[payerId]; // or bufferStorage[walletId] if inner ≠ payer
-        if (!wasmUpload)
-          throw new Error("Wasm file not found in bufferStorage");
-        invokeArgs.push(nativeToScVal(wasmUpload));
-      } else {
-        invokeArgs.push(processArgs(a));
-      }
-    }
+	// IMPORTANT: queue by the account whose sequence is used.
+	return enqueue(payerId, async () => {
+		// -- 1) Build args -------------------------------------------------------
+		const invokeArgs = [];
+		for (const a of args || []) {
+			if (a && a.type === "Wasm") {
+				const wasmUpload = bufferStorage[payerId]; // or bufferStorage[walletId] if inner ≠ payer
+				if (!wasmUpload)
+					throw new Error("Wasm file not found in bufferStorage");
+				invokeArgs.push(nativeToScVal(wasmUpload));
+			} else {
+				invokeArgs.push(processArgs(a));
+			}
+		}
 
-    // -- 2) Build INNER tx (source = payer in your code)
-    const source = await server.getAccount(payerId);
+		// -- 2) Build INNER tx (source = payer in your code)
+		const source = await server.getAccount(payerId);
 
-    let inner = new TransactionBuilder(source, {
-      fee: BASE_FEE,
-      networkPassphrase: Networks[network],
-    })
-      .setTimeout(90)
-      .addOperation(contract.call(operation, ...invokeArgs))
-      .build();
+		let inner = new TransactionBuilder(source, {
+			fee: BASE_FEE,
+			networkPassphrase: Networks[network],
+		})
+			.setTimeout(90)
+			.addOperation(contract.call(operation, ...invokeArgs))
+			.build();
 
-    // -- 3) Prepare (simulate + footprint/resource fee)
-    const preparedXdr = await server.prepareTransaction(inner.toXDR());
-    inner = TransactionBuilder.fromXDR(preparedXdr, Networks[network]);
+		// -- 3) Prepare (simulate + footprint/resource fee)
+		const preparedXdr = await server.prepareTransaction(inner.toXDR());
+		inner = TransactionBuilder.fromXDR(preparedXdr, Networks[network]);
 
-    // -- 4) Sign INNER
-    inner.sign(payerKeypair);
+		// -- 4) Sign INNER
+		inner.sign(payerKeypair);
 
-    const innerHashHex = inner.hash(Networks[network]).toString("hex");
+		const innerHashHex = inner.hash(Networks[network]).toString("hex");
 
-    // -- 5) Send INNER with watchdog -----------------------------------------
-    let settled = false;
-    const txPromise = server
-      .sendTransaction(inner.toXDR())
-      .then((res) => {
-        settled = true;
-        return res;
-      })
-      .catch((err) => {
-        settled = true;
-        throw err;
-      });
+		// -- 5) Send INNER with watchdog -----------------------------------------
+		let settled = false;
+		const txPromise = server
+			.sendTransaction(inner.toXDR())
+			.then((res) => {
+				settled = true;
+				return res;
+			})
+			.catch((err) => {
+				settled = true;
+				throw err;
+			});
 
-    let firstRes;
-    try {
-      firstRes = await Promise.race([
-        txPromise,
-        new Promise((_, reject) =>
-          setTimeout(() => {
-            if (!settled) reject(new Error("WATCHDOG_TIMEOUT"));
-          }, watchdogMs)
-        ),
-      ]);
+		let firstRes;
+		try {
+			firstRes = await Promise.race([
+				txPromise,
+				new Promise((_, reject) =>
+					setTimeout(() => {
+						if (!settled) reject(new Error("WATCHDOG_TIMEOUT"));
+					}, watchdogMs),
+				),
+			]);
 
-      // If we got a resolved result, return it
-      if (firstRes && firstRes.status && firstRes.status !== "PENDING") {
-        return firstRes;
-      }
-    } catch (e) {
-      if (e.message !== "WATCHDOG_TIMEOUT") throw e;
-      // Else fall through to fee-bump
-      console.log("Trigger fee bump!");
-    }
+			// If we got a resolved result, return it
+			if (firstRes && firstRes.status && firstRes.status !== "PENDING") {
+				return firstRes;
+			}
+		} catch (e) {
+			if (e.message !== "WATCHDOG_TIMEOUT") throw e;
+			// Else fall through to fee-bump
+			console.log("Trigger fee bump!");
+		}
 
-    // -- 6) Fee-bump fallback (rebid much higher)
-    const innerFee = parseInt(inner.fee, 10) || 0;
-    const maxFee = Math.max(Math.ceil(innerFee * bumpFactor), bumpFloorStroops);
+		// -- 6) Fee-bump fallback (rebid much higher)
+		const innerFee = parseInt(inner.fee, 10) || 0;
+		const maxFee = Math.max(Math.ceil(innerFee * bumpFactor), bumpFloorStroops);
 
-    let feeBump = TransactionBuilder.buildFeeBumpTransaction(
-      payerId, // fee source (g-account)
-      maxFee, // total fee in stroops
-      inner, // the prepared & signed inner
-      Networks[network]
-    );
-    feeBump.sign(payerKeypair);
+		let feeBump = TransactionBuilder.buildFeeBumpTransaction(
+			payerId, // fee source (g-account)
+			maxFee, // total fee in stroops
+			inner, // the prepared & signed inner
+			Networks[network],
+		);
+		feeBump.sign(payerKeypair);
 
-    console.log("fee bump submission");
+		console.log("fee bump submission");
 
-    const fbRes = await server.sendTransaction(feeBump.toXDR());
+		const fbRes = await server.sendTransaction(feeBump.toXDR());
 
-    if (fbRes && fbRes.status && fbRes.status !== "PENDING") return fbRes;
+		if (fbRes && fbRes.status && fbRes.status !== "PENDING") return fbRes;
 
-    return fbRes || { status: "PENDING", innerHash: innerHashHex };
-  });
+		return fbRes || { status: "PENDING", innerHash: innerHashHex };
+	});
 }
 
 async function contractGet(pubKey, network, contractId, operation, args) {
-  try {
-    const invokeArgs = [];
+	try {
+		const invokeArgs = [];
 
-    for (const eachArg of args) {
-      if (eachArg?.type === "Wasm") {
-        const wasmUpload = bufferStorage[pubKey];
+		for (const eachArg of args) {
+			if (eachArg?.type === "Wasm") {
+				const wasmUpload = bufferStorage[pubKey];
 
-        if (!wasmUpload) {
-          return res
-            .status(400)
-            .json({ error: "Wasm file not found in bufferStorage" });
-        }
+				if (!wasmUpload) {
+					return res
+						.status(400)
+						.json({ error: "Wasm file not found in bufferStorage" });
+				}
 
-        invokeArgs.push(nativeToScVal(wasmUpload));
+				invokeArgs.push(nativeToScVal(wasmUpload));
 
-        // Don't delete bufferStorage[pubKey] yet; do it only after successful simulation
-      } else {
-        invokeArgs.push(processArgs(eachArg));
-      }
-    }
+				// Don't delete bufferStorage[pubKey] yet; do it only after successful simulation
+			} else {
+				invokeArgs.push(processArgs(eachArg));
+			}
+		}
 
-    const server = RpcServer(network, "json");
-    const source = await server.getAccount(pubKey);
-    const txBuilder = new TransactionBuilder(source, {
-      fee: BASE_FEE,
-      networkPassphrase: Networks[network],
-    });
+		const server = RpcServer(network, "json");
+		const source = await server.getAccount(pubKey);
+		const txBuilder = new TransactionBuilder(source, {
+			fee: BASE_FEE,
+			networkPassphrase: Networks[network],
+		});
 
-    const contract = new Contract(contractId);
-    const txXdr = txBuilder
-      .addOperation(
-        contract.call(
-          operation,
-          ...invokeArgs
-          // nativeToScVal("4200", { type: "u32" })
-        )
-      )
-      .setTimeout(TimeoutInfinite)
-      .build()
-      .toXDR();
+		const contract = new Contract(contractId);
+		const txXdr = txBuilder
+			.addOperation(
+				contract.call(
+					operation,
+					...invokeArgs,
+					// nativeToScVal("4200", { type: "u32" })
+				),
+			)
+			.setTimeout(TimeoutInfinite)
+			.build()
+			.toXDR();
 
-    const res = await server.simulateTransaction(txXdr);
+		const res = await server.simulateTransaction(txXdr);
 
-    return res;
-  } catch (e) {
-    console.log(e.message);
-  }
+		return res;
+	} catch (e) {
+		console.log(e.message);
+	}
 }
 
 async function invokeContractScVal(network, contractId, operation, invokeArgs) {
-  const memo = "";
-  const server = RpcServer(network, "json");
-  const contract = new Contract(contractId);
-  const source = await server.getAccount(internalSigner.publicKey());
+	const memo = "";
+	const server = RpcServer(network, "json");
+	const contract = new Contract(contractId);
+	const source = await server.getAccount(internalSigner.publicKey());
 
-  const txBuilderAny = new TransactionBuilder(source, {
-    fee: BASE_FEE,
-    networkPassphrase: Networks[network],
-  })
-    .setTimeout(TimeoutInfinite)
-    .addOperation(contract.call(operation, ...invokeArgs));
+	const txBuilderAny = new TransactionBuilder(source, {
+		fee: BASE_FEE,
+		networkPassphrase: Networks[network],
+	})
+		.setTimeout(TimeoutInfinite)
+		.addOperation(contract.call(operation, ...invokeArgs));
 
-  if (memo?.length > 0) {
-    txBuilderAny.addMemo(Memo.text(memo));
-  }
+	if (memo?.length > 0) {
+		txBuilderAny.addMemo(Memo.text(memo));
+	}
 
-  const builtTx = txBuilderAny.build().toXDR();
+	const builtTx = txBuilderAny.build().toXDR();
 
-  const prepareTx = await server.prepareTransaction(builtTx);
+	const prepareTx = await server.prepareTransaction(builtTx);
 
-  const txSign = TransactionBuilder.fromXDR(prepareTx, Networks[network]);
+	const txSign = TransactionBuilder.fromXDR(prepareTx, Networks[network]);
 
-  txSign.sign(internalSigner);
+	txSign.sign(internalSigner);
 
-  const signedTx = txSign.toXDR();
+	const signedTx = txSign.toXDR();
 
-  const res = await server.sendTransaction(signedTx);
+	const res = await server.sendTransaction(signedTx);
 
-  return res;
+	return res;
 }
 
 async function sendWithFailover(signedXdr, network) {
-  let lastError;
+	let lastError;
 
-  // Try primary first
-  try {
-    console.log("1 ran");
-    return await primaryServer(network, "json").sendTransaction(signedXdr);
-  } catch (err) {
-    if (/timeout|ECONNRESET|network|fetch failed/i.test(err.message)) {
-      console.warn("Primary RPC failed, switching to secondary...");
-      lastError = err;
-    } else {
-      // Ledger-level error (txBAD_SEQ, txFAILED, etc.) → don’t retry
-      throw err;
-    }
-  }
+	// Try primary first
+	try {
+		console.log("1 ran");
+		return await primaryServer(network, "json").sendTransaction(signedXdr);
+	} catch (err) {
+		if (/timeout|ECONNRESET|network|fetch failed/i.test(err.message)) {
+			console.warn("Primary RPC failed, switching to secondary...");
+			lastError = err;
+		} else {
+			// Ledger-level error (txBAD_SEQ, txFAILED, etc.) → don’t retry
+			throw err;
+		}
+	}
 
-  // Fallback to secondary
-  try {
-    console.log("2 ran");
-    return await secondaryServer(network, "json").sendTransaction(signedXdr);
-  } catch (err) {
-    throw lastError || err;
-  }
+	// Fallback to secondary
+	try {
+		console.log("2 ran");
+		return await secondaryServer(network, "json").sendTransaction(signedXdr);
+	} catch (err) {
+		throw lastError || err;
+	}
 }
 
 module.exports = {
-  sendWithFailover,
-  invokeCreate,
-  internalSigner,
-  RpcServer,
-  contractGet,
-  invokeContract,
-  invokeContractScVal,
-  BASE_FEE,
+	sendWithFailover,
+	invokeCreate,
+	internalSigner,
+	RpcServer,
+	contractGet,
+	invokeContract,
+	invokeContractScVal,
+	BASE_FEE,
 };
