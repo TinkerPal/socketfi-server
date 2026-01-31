@@ -35,7 +35,7 @@ After=docker.service
 [Service]
 Type=simple
 WorkingDirectory=$APP_DIR
-ExecStartPre=$DOCKER_BIN build -t socket-server .
+ExecStartPre=$DOCKER_BIN build -t socketfi-server .
 ExecStart=$DOCKER_BIN compose up
 ExecStop=$DOCKER_BIN compose down
 Restart=always

@@ -1,6 +1,6 @@
 services:
-  socket-server:
-    image: socket-server
+  socketfi-server:
+    image: socketfi-server
     env_file:
       - .env
     ports:
