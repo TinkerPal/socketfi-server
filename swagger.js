@@ -7,7 +7,7 @@ const servers =
         { url: "https://server.socket.fi", description: "Prod (root)" },
         { url: "https://app.socket.fi", description: "Prod (app)" },
       ]
-    : [{ url: "http://localhost:3000", description: "Local" }];
+    : [{ url: "http://localhost:3020", description: "Local" }];
 
 /** @type {import('swagger-jsdoc').Options} */
 const options = {
