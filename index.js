@@ -52,6 +52,7 @@ const {
   contractGet,
   invokeContract,
   invokeContractScVal,
+  BASE_FEE,
 } = require("./soroban/soroban-methods");
 const { sseProgress } = require("./tracker/progress-tracker");
 const { progress } = require("./tracker/progress");
@@ -807,7 +808,7 @@ app.post("/any-invoke-external", async (req, res) => {
     const contract = new StellarSdk.Contract(contractId);
 
     const txBuilderAny = new StellarSdk.TransactionBuilder(source, {
-      fee: StellarSdk.BASE_FEE,
+      fee: BASE_FEE,
       networkPassphrase: StellarSdk.Networks[network],
     })
       .setTimeout(StellarSdk.TimeoutInfinite)
@@ -868,79 +869,6 @@ app.post("/any-invoke-external", async (req, res) => {
     });
   }
 });
-
-// app.post("/any-invoke-external", async (req, res) => {
-//   try {
-//     const {
-//       pubKey,
-//       contractId,
-//       network,
-//       callFunction,
-//       memo = "",
-//       sId = "",
-//     } = req.body;
-
-//     progress.push(sId, {
-//       step: "transaction creation",
-//       status: "start",
-//       detail: "Creating Transaction",
-//     });
-//     const invokeArgs = [callFunction?.name];
-//     for (const eachArg of callFunction?.inputs) {
-//       if (eachArg?.type === "Wasm") {
-//         const wasmUpload = bufferStorage[pubKey];
-
-//         invokeArgs.push(StellarSdk.nativeToScVal(wasmUpload));
-//         delete bufferStorage[pubKey];
-//       } else {
-//         invokeArgs.push(processArgs(eachArg));
-//       }
-//     }
-
-//     if (!pubKey || !network || !contractId || invokeArgs.length === 0) {
-//       return res.status(400).json({ error: "request body is incomplete" });
-//     }
-
-//     const server = RpcServer(network, "json");
-//     const source = await server.getAccount(pubKey);
-
-//     const contract = new StellarSdk.Contract(contractId);
-
-//     const txBuilderAny = new StellarSdk.TransactionBuilder(source, {
-//       fee: StellarSdk.BASE_FEE,
-//       networkPassphrase: StellarSdk.Networks[network],
-//     })
-//       .setTimeout(StellarSdk.TimeoutInfinite)
-//       .addOperation(contract.call(...invokeArgs));
-
-//     if (memo?.length > 0) {
-//       txBuilderAny.addMemo(StellarSdk.Memo.text(memo));
-//     }
-
-//     const txBuilder = txBuilderAny.build().toXDR();
-
-//     const preparedTransaction = await server.prepareTransaction(txBuilder);
-
-//     res.status(200).json({
-//       message: "prepare invoke external successful",
-//       xdr: preparedTransaction,
-//     });
-//   } catch (error) {
-//     console.error(
-//       "Error:",
-//       error.response ? error.response.data : error.message
-//     );
-
-//     progress.push(sId, {
-//       step: "transaction creation",
-//       status: "error",
-//       detail: "Transaction Creation Failed",
-//     });
-//     return res
-//       .status(400)
-//       .json({ error: error.response ? error.response.data : error.message });
-//   }
-// });
 
 app.post("/submit-transaction-external", async (req, res) => {
   const { signedTx, network, txDetails = null, sId = "" } = req.body;
