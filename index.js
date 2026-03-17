@@ -200,7 +200,10 @@ app.post("/init-auth", async (req, res) => {
       { httpOnly: true, maxAge: 120000, secure: true, sameSite: sameSiteConfig }
     );
 
-    console.dir({ options: options, existingUser: true, id: user.id });
+    console.dir(
+      { options: options, existingUser: true, id: user.id },
+      { depth: null }
+    );
     res.json({ options: options, existingUser: true, id: user.id });
   } else {
     const options = await generateRegistrationOptions({
@@ -226,7 +229,10 @@ app.post("/init-auth", async (req, res) => {
       { httpOnly: true, maxAge: 120000, secure: true, sameSite: sameSiteConfig }
     );
 
-    console.dir({ options: options, existingUser: false, id: options.user.id });
+    console.dir(
+      { options: options, existingUser: false, id: options.user.id },
+      { depth: null }
+    );
 
     res.json({ options: options, existingUser: false, id: options.user.id });
   }
