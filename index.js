@@ -772,6 +772,8 @@ app.post("/any-invoke-external", async (req, res) => {
     sId = "",
   } = req.body;
 
+  console.log("the body", req.body);
+
   try {
     // 🔹 Notify start
     progress.push(sId, {
