@@ -103,6 +103,74 @@
  *                 accessToken: { type: string }
  *                 userProfile: { type: object }
  *       400: { description: Verification failed }
+  */
+
+/**
+ * @swagger
+ * /init-add-email:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Send a verification code to an email address
+ *     description: Sends a 6-digit OTP to the provided email address. Requires a valid JWT. Calling again overwrites any previous pending code.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string, example: "user@example.com" }
+ *     responses:
+ *       200:
+ *         description: OTP sent
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string }
+ *       400: { description: Invalid email format }
+ *       401: { description: Missing/invalid bearer token }
+ *       409: { description: Email already in use by another account }
+ *       500: { description: Failed to send email }
+ */
+
+/**
+ * @swagger
+ * /verify-email:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Verify an OTP and add the email to the user account
+ *     description: Validates the 6-digit code and associates the email with the authenticated user. Code expires after 10 minutes or after 5 failed attempts.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, otp]
+ *             properties:
+ *               email: { type: string, example: "user@example.com" }
+ *               otp: { type: string, example: "123456" }
+ *     responses:
+ *       200:
+ *         description: Email verified and added
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message: { type: string }
+ *       400: { description: Invalid or incorrect OTP }
+ *       401: { description: Missing/invalid bearer token }
+ *       404: { description: No pending verification for this email }
+ *       410: { description: OTP has expired }
+ *       429: { description: Too many failed attempts }
  */
 
 /**
