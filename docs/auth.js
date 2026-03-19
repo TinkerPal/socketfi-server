@@ -175,6 +175,52 @@
 
 /**
  * @swagger
+ * /init-twitter-auth:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Initiate Twitter OAuth flow to link a Twitter account
+ *     description: |
+ *       Authenticates the user via JWT accessToken query param, stores context in session,
+ *       then redirects the browser to Twitter OAuth. After the user authorizes, Twitter redirects
+ *       back to `/auth/twitter/callback`, which stores the Twitter profile and redirects to
+ *       `${CLIENT_URL}/settings?twitter=success`.
+ *     parameters:
+ *       - in: query
+ *         name: accessToken
+ *         required: true
+ *         schema: { type: string }
+ *         description: JWT access token of the logged-in user
+ *     responses:
+ *       302:
+ *         description: Redirects to Twitter OAuth
+ *       401: { description: Missing/invalid accessToken }
+ */
+
+/**
+ * @swagger
+ * /init-discord-auth:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Initiate Discord OAuth flow to link a Discord account
+ *     description: |
+ *       Authenticates the user via accessToken query param, stores context in session,
+ *       then redirects the browser to Discord OAuth. After the user authorizes, Discord redirects
+ *       back to `/auth/discord/callback`, which stores the Discord profile and redirects to
+ *       `${CLIENT_URL}/settings?discord=success`.
+ *     parameters:
+ *       - in: query
+ *         name: accessToken
+ *         required: true
+ *         schema: { type: string }
+ *         description: JWT access token of the logged-in user
+ *     responses:
+ *       302:
+ *         description: Redirects to Discord OAuth
+ *       401: { description: Missing/invalid accessToken }
+ */
+
+/**
+ * @swagger
  * /init-activate-account:
  *   post:
  *     tags: [Wallet]

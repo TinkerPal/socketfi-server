@@ -7,6 +7,10 @@ const { randomUUID, randomInt } = require("crypto");
 const mongoose = require("mongoose");
 const swaggerUi = require("swagger-ui-express");
 const { swaggerSpec } = require("./swagger");
+const passport = require("passport");
+const session = require("express-session");
+require("./config/passport-setup");
+require("./config/discord-setup");
 
 const {
 	generateAuthenticationOptions,
@@ -115,6 +119,30 @@ app.use(
 		customSiteTitle: "SocketFi API Docs",
 	}),
 );
+
+app.use(
+	session({
+		name: "twitterSession",
+		secret:
+			process.env.SESSION_SECRET || "fallback-secret-change-in-production",
+		resave: false,
+		saveUninitialized: true,
+		cookie: {
+			maxAge: 10 * 60 * 1000,
+			sameSite: process.env.NODE_ENV === "production" ? "None" : "lax",
+			secure: process.env.NODE_ENV === "production",
+			httpOnly: true,
+		},
+	}),
+);
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+const twitterAuthRouter = require("./routes/twitter-auth");
+const discordAuthRouter = require("./routes/discord-auth");
+app.use("/auth", twitterAuthRouter);
+app.use("/auth", discordAuthRouter);
 
 app.get("/process/progress/:id", sseProgress);
 
@@ -324,6 +352,10 @@ app.post("/verify-auth", async (req, res) => {
 						address: user.address,
 						email: user.email || null,
 						emailVerified: user.emailVerified || false,
+						twitterId: user.twitterId || null,
+						twitterProfile: user.twitterProfile || null,
+						discordId: user.discordId || null,
+						discordProfile: user.discordProfile || null,
 					};
 
 					progress.push(id, {
@@ -455,6 +487,8 @@ app.post("/verify-auth", async (req, res) => {
 				address: user.address,
 				email: user.email || null,
 				emailVerified: user.emailVerified || false,
+				twitterId: user.twitterId || null,
+				twitterProfile: user.twitterProfile || null,
 			};
 
 			progress.push(id, {
@@ -619,6 +653,92 @@ app.post("/verify-email", async (req, res) => {
 	await EmailVerification.deleteOne({ userId, email: normalizedEmail });
 
 	return res.json({ message: "Email verified and added successfully" });
+});
+
+app.get("/init-twitter-auth", async (req, res) => {
+	if (
+		!process.env.TWITTER_CONSUMER_KEY ||
+		!process.env.TWITTER_CONSUMER_SECRET
+	) {
+		console.error(
+			"[init-twitter-auth] Missing TWITTER_CONSUMER_KEY or TWITTER_CONSUMER_SECRET",
+		);
+		return res.status(500).json({ error: "Twitter OAuth not configured" });
+	}
+
+	// const { token } = req.query;
+	// if (!token) {
+	// 	return res.status(401).json({ error: "token query param is required" });
+	// }
+	// let accessVerification;
+	// try {
+	// 	accessVerification = authenticateToken(token);
+	// } catch (e) {
+	// 	return res.status(401).json({ error: "Invalid token" });
+	// }
+	// const { userId } = accessVerification;
+
+	const userId = "jhfkjfkfjflkflkf";
+
+	req.session.twitter_auth_context = { userId };
+
+	passport.authenticate("twitter")(req, res, (err, user, info) => {
+		if (err) {
+			console.error("[init-twitter-auth] Passport error:", err);
+			return res
+				.status(500)
+				.json({ error: "Unexpected passport error", detail: err.message });
+		}
+		if (!user) {
+			console.error("[init-twitter-auth] No user returned:", info);
+			return res
+				.status(500)
+				.json({ error: "Unexpected passport error", detail: "no user" });
+		}
+	});
+});
+
+app.get("/init-discord-auth", async (req, res) => {
+	if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
+		console.error(
+			"[init-discord-auth] Missing DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET",
+		);
+		return res.status(500).json({ error: "Discord OAuth not configured" });
+	}
+
+	// const { token } = req.query;
+
+	// if (!token) {
+	// 	return res.status(401).json({ error: "accessToken query param is required" });
+	// }
+
+	// let accessVerification;
+	// try {
+	// 	accessVerification = authenticateToken(token);
+	// } catch (e) {
+	// 	return res.status(401).json({ error: "Invalid token" });
+	// }
+
+	// const { userId } = accessVerification;
+
+	const userId = "jhfkjfkfjflkflkf";
+
+	req.session.discord_auth_context = { userId };
+
+	passport.authenticate("discord")(req, res, (err, user, info) => {
+		if (err) {
+			console.error("[init-discord-auth] Passport error:", err);
+			return res
+				.status(500)
+				.json({ error: "Unexpected passport error", detail: err.message });
+		}
+		if (!user) {
+			console.error("[init-discord-auth] No user returned:", info);
+			return res
+				.status(500)
+				.json({ error: "Unexpected passport error", detail: "no user" });
+		}
+	});
 });
 
 //Activates (creates) account on a given network
@@ -822,6 +942,10 @@ app.post("/activate-account", async (req, res) => {
 				address: updatedUser.address,
 				email: updatedUser.email || null,
 				emailVerified: updatedUser.emailVerified || false,
+				twitterId: updatedUser.twitterId || null,
+				twitterProfile: updatedUser.twitterProfile || null,
+				discordId: updatedUser.discordId || null,
+				discordProfile: updatedUser.discordProfile || null,
 			};
 
 			progress.push(user?.id, {

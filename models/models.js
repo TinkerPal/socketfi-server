@@ -66,6 +66,27 @@ const userAccountSchema = new Schema(
 			type: Boolean,
 			default: false,
 		},
+		twitterId: {
+			type: String,
+			unique: true,
+			sparse: true,
+		},
+		twitterProfile: {
+			name: String,
+			screenName: String,
+			profileImageUrl: String,
+		},
+		discordId: {
+			type: String,
+			unique: true,
+			sparse: true,
+		},
+		discordProfile: {
+			username: String,
+			discriminator: String,
+			avatar: String,
+			email: String,
+		},
 	},
 	{ timestamps: true, versionKey: false },
 );
