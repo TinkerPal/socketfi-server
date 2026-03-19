@@ -772,6 +772,7 @@ app.post("/any-invoke-external", async (req, res) => {
     sId = "",
   } = req.body;
 
+  console.dir(req.body, { depth: null });
   console.log("the body", req.body);
 
   try {
@@ -884,6 +885,8 @@ app.post("/any-invoke-external", async (req, res) => {
 
 app.post("/submit-transaction-external", async (req, res) => {
   const { signedTx, network, txDetails = null, sId = "" } = req.body;
+
+  console.dir(req.body, { depth: null });
 
   if (!signedTx || !network) {
     return res
