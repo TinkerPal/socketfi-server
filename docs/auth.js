@@ -103,7 +103,7 @@
  *                 accessToken: { type: string }
  *                 userProfile: { type: object }
  *       400: { description: Verification failed }
-  */
+ */
 
 /**
  * @swagger
@@ -217,6 +217,108 @@
  *       302:
  *         description: Redirects to Discord OAuth
  *       401: { description: Missing/invalid accessToken }
+ */
+
+/**
+ * @swagger
+ * /init-telegram-link:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Initiate Telegram account linking
+ *     description: |
+ *       User provides their Telegram username to start the linking process.
+ *       A pending record is created. The user must then open their Telegram bot and send /start.
+ *       The bot will reply with a 6-digit OTP. The user then calls /verify-telegram-otp to complete linking.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [username]
+ *             properties:
+ *               username: { type: string, example: "johndoe" }
+ *     responses:
+ *       200:
+ *         description: Linking initiated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 pendingId: { type: string }
+ *                 expiresAt: { type: string, format: date-time }
+ *                 message: { type: string }
+ *       400: { description: Invalid username format or missing field }
+ *       401: { description: Missing/invalid bearer token }
+ *       409: { description: Telegram account already linked to another user }
+ */
+
+/**
+ * @swagger
+ * /verify-telegram-otp:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Verify the OTP received via Telegram and link the account
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [otp]
+ *             properties:
+ *               otp: { type: string, example: "123456" }
+ *     responses:
+ *       200:
+ *         description: OTP verification result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 message: { type: string, nullable: true }
+ *                 error: { type: string, nullable: true }
+ *       401: { description: Missing/invalid bearer token }
+ */
+
+// /**
+//  * @swagger
+//  * /telegram/set-webhook:
+//  *   get:
+//  *     tags: [Auth]
+//  *     summary: Set telegram bot webhook endpoint
+// //  *     description: Receives updates from the Telegram bot. Handles /start command to send OTP to the user.
+// //  *     requestBody:
+// //  *       required: true
+// //  *       content:
+// //  *         application/json:
+// //  *           schema:
+// //  *             type: object
+// //  *     responses:
+//  *       200: { description: Webhook processed }
+//  */
+
+/**
+ * @swagger
+ * /telegram/webhook:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Telegram bot webhook endpoint
+ *     description: Receives updates from the Telegram bot. Handles /start command to send OTP to the user.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200: { description: Webhook processed }
  */
 
 /**
