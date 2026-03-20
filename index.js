@@ -709,7 +709,14 @@ app.get("/init-discord-auth", async (req, res) => {
     return res.status(500).json({ error: "Discord OAuth not configured" });
   }
 
-  const { token } = req.query;
+  const authHeader = req.headers["authorization"];
+
+  if (!authHeader) {
+    return res.status(401).json({ error: "Authorization header is missing" });
+  }
+
+  const token = authHeader.split(" ")[1];
+  // const { token } = req.query;
 
   if (!token) {
     return res
