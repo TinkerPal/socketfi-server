@@ -28,9 +28,11 @@ const {
 	authenticateToken,
 	TokenList,
 	EmailVerification,
+	TelegramLinking,
 	UserAccount,
 } = require("./models/models");
 const { sendOtpEmail } = require("./services/email-service");
+const { sendOtpToTelegram } = require("./services/telegram-service");
 const {
 	getUserByUsername,
 	createUser,
@@ -141,6 +143,7 @@ app.use(passport.session());
 
 const twitterAuthRouter = require("./routes/twitter-auth");
 const discordAuthRouter = require("./routes/discord-auth");
+const { default: axios } = require("axios");
 app.use("/auth", twitterAuthRouter);
 app.use("/auth", discordAuthRouter);
 
@@ -356,6 +359,8 @@ app.post("/verify-auth", async (req, res) => {
 						twitterProfile: user.twitterProfile || null,
 						discordId: user.discordId || null,
 						discordProfile: user.discordProfile || null,
+						telegramId: user.telegramId || null,
+						telegramUsername: user.telegramUsername || null,
 					};
 
 					progress.push(id, {
@@ -532,21 +537,21 @@ app.post("/init-add-email", async (req, res) => {
 		return res.status(400).json({ error: "Invalid email format" });
 	}
 
-	// const authHeader = req.headers["authorization"];
-	// if (!authHeader) {
-	// 	return res.status(401).json({ error: "Authorization header is missing" });
-	// }
+	const authHeader = req.headers["authorization"];
+	if (!authHeader) {
+		return res.status(401).json({ error: "Authorization header is missing" });
+	}
 
-	// const accessToken = authHeader.split(" ")[1];
-	// let accessVerification;
-	// try {
-	// 	accessVerification = authenticateToken(accessToken);
-	// } catch (e) {
-	// 	return res.status(401).json({ error: "Invalid token" });
-	// }
+	const accessToken = authHeader.split(" ")[1];
+	let accessVerification;
+	try {
+		accessVerification = authenticateToken(accessToken);
+	} catch (e) {
+		return res.status(401).json({ error: "Invalid token" });
+	}
 
-	// const { userId } = accessVerification;
-	const userId = "jhfkjfkfjflkflkf";
+	const { userId } = accessVerification;
+	// const userId = "jhfkjfkfjflkflkf";
 
 	const existing = await EmailVerification.findOne({
 		userId,
@@ -596,22 +601,22 @@ app.post("/verify-email", async (req, res) => {
 
 	const normalizedEmail = String(email).trim().toLowerCase();
 
-	// const authHeader = req.headers["authorization"];
-	// if (!authHeader) {
-	// 	return res.status(401).json({ error: "Authorization header is missing" });
-	// }
+	const authHeader = req.headers["authorization"];
+	if (!authHeader) {
+		return res.status(401).json({ error: "Authorization header is missing" });
+	}
 
-	// const accessToken = authHeader.split(" ")[1];
-	// let accessVerification;
-	// try {
-	// 	accessVerification = authenticateToken(accessToken);
-	// } catch (e) {
-	// 	return res.status(401).json({ error: "Invalid token" });
-	// }
+	const accessToken = authHeader.split(" ")[1];
+	let accessVerification;
+	try {
+		accessVerification = authenticateToken(accessToken);
+	} catch (e) {
+		return res.status(401).json({ error: "Invalid token" });
+	}
 
-	// const { userId } = accessVerification;
+	const { userId } = accessVerification;
 
-	const userId = "jhfkjfkfjflkflkf";
+	// const userId = "jhfkjfkfjflkflkf";
 
 	const verification = await EmailVerification.findOne({
 		userId,
@@ -666,19 +671,19 @@ app.get("/init-twitter-auth", async (req, res) => {
 		return res.status(500).json({ error: "Twitter OAuth not configured" });
 	}
 
-	// const { token } = req.query;
-	// if (!token) {
-	// 	return res.status(401).json({ error: "token query param is required" });
-	// }
-	// let accessVerification;
-	// try {
-	// 	accessVerification = authenticateToken(token);
-	// } catch (e) {
-	// 	return res.status(401).json({ error: "Invalid token" });
-	// }
-	// const { userId } = accessVerification;
+	const { token } = req.query;
+	if (!token) {
+		return res.status(401).json({ error: "token query param is required" });
+	}
+	let accessVerification;
+	try {
+		accessVerification = authenticateToken(token);
+	} catch (e) {
+		return res.status(401).json({ error: "Invalid token" });
+	}
+	const { userId } = accessVerification;
 
-	const userId = "jhfkjfkfjflkflkf";
+	// const userId = "jhfkjfkfjflkflkf";
 
 	req.session.twitter_auth_context = { userId };
 
@@ -706,22 +711,24 @@ app.get("/init-discord-auth", async (req, res) => {
 		return res.status(500).json({ error: "Discord OAuth not configured" });
 	}
 
-	// const { token } = req.query;
+	const { token } = req.query;
 
-	// if (!token) {
-	// 	return res.status(401).json({ error: "accessToken query param is required" });
-	// }
+	if (!token) {
+		return res
+			.status(401)
+			.json({ error: "accessToken query param is required" });
+	}
 
-	// let accessVerification;
-	// try {
-	// 	accessVerification = authenticateToken(token);
-	// } catch (e) {
-	// 	return res.status(401).json({ error: "Invalid token" });
-	// }
+	let accessVerification;
+	try {
+		accessVerification = authenticateToken(token);
+	} catch (e) {
+		return res.status(401).json({ error: "Invalid token" });
+	}
 
-	// const { userId } = accessVerification;
+	const { userId } = accessVerification;
 
-	const userId = "jhfkjfkfjflkflkf";
+	// const userId = "jhfkjfkfjflkflkf";
 
 	req.session.discord_auth_context = { userId };
 
@@ -739,6 +746,257 @@ app.get("/init-discord-auth", async (req, res) => {
 				.json({ error: "Unexpected passport error", detail: "no user" });
 		}
 	});
+});
+
+app.post("/init-telegram-link", async (req, res) => {
+	const { username } = req.body;
+
+	if (!username) {
+		return res.status(400).json({ error: "username is required" });
+	}
+
+	const usernameRegex = /^[a-zA-Z0-9_]{5,32}$/;
+	if (!usernameRegex.test(username)) {
+		return res.status(400).json({
+			error:
+				"Invalid Telegram username format. Must be 5-32 characters, alphanumeric with underscores only.",
+		});
+	}
+
+	const authHeader = req.headers["authorization"];
+	if (!authHeader) {
+		return res.status(401).json({ error: "Authorization header is missing" });
+	}
+
+	const accessToken = authHeader.split(" ")[1];
+	let accessVerification;
+	try {
+		accessVerification = authenticateToken(accessToken);
+	} catch (e) {
+		return res.status(401).json({ error: "Invalid token" });
+	}
+
+	const { userId } = accessVerification;
+	// const userId = "jhfkjfkfjflkflkf";
+
+	const normalizedUsername = String(username).trim().toLowerCase();
+
+	const alreadyLinked = await UserAccount.findOne({
+		telegramUsername: normalizedUsername,
+	}).lean();
+
+	if (alreadyLinked && alreadyLinked.userId !== userId) {
+		return res.status(409).json({
+			error: "This Telegram account is already linked to another user",
+		});
+	}
+
+	const existingPending = await TelegramLinking.findOne({
+		userId,
+		status: "PENDING",
+	}).lean();
+
+	if (existingPending) {
+		if (
+			existingPending.telegramUsername === normalizedUsername &&
+			new Date(existingPending.expiresAt) > new Date()
+		) {
+			return res.json({
+				pendingId: existingPending._id,
+				expiresAt: existingPending.expiresAt,
+				message:
+					"Pending linking request already exists. Go to the bot and press /start.",
+			});
+		}
+		await TelegramLinking.deleteOne({ _id: existingPending._id });
+	}
+
+	await TelegramLinking.deleteMany({ userId, status: "OTP_SENT" });
+
+	const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+	await TelegramLinking.findOneAndUpdate(
+		{ userId, telegramUsername: normalizedUsername },
+		{
+			userId,
+			telegramUsername: normalizedUsername,
+			status: "PENDING",
+			expiresAt,
+		},
+		{ upsert: true, setDefaultsOnInsert: true, new: true },
+	);
+
+	return res.json({
+		pendingId: existingPending?._id,
+		expiresAt,
+		message:
+			"Telegram linking initiated. Please go to the bot and press /start.",
+	});
+});
+
+app.post("/verify-telegram-otp", async (req, res) => {
+	const { otp } = req.body;
+
+	if (!otp) {
+		return res.status(400).json({ error: "otp is required" });
+	}
+
+	const authHeader = req.headers["authorization"];
+	if (!authHeader) {
+		return res.status(401).json({ error: "Authorization header is missing" });
+	}
+
+	const accessToken = authHeader.split(" ")[1];
+	let accessVerification;
+	try {
+		accessVerification = authenticateToken(accessToken);
+	} catch (e) {
+		return res.status(401).json({ error: "Invalid token" });
+	}
+
+	const { userId } = accessVerification;
+
+	const verification = await TelegramLinking.findOne({
+		userId,
+		otpCode: String(otp).trim(),
+		status: "OTP_SENT",
+	}).lean();
+
+	if (!verification) {
+		return res.json({ success: false, error: "Invalid or expired OTP" });
+	}
+
+	if (new Date() > verification.expiresAt) {
+		await TelegramLinking.deleteOne({ _id: verification._id });
+		return res.json({ success: false, error: "OTP has expired" });
+	}
+
+	if (!verification.telegramUsername || !verification.telegramChatId) {
+		await TelegramLinking.deleteOne({ _id: verification._id });
+		return res.json({
+			success: false,
+			error: "Telegram account not found. Please try again.",
+		});
+	}
+
+	const user = await UserAccount.findOne({ userId }).lean();
+	if (!user) {
+		await TelegramLinking.deleteOne({ _id: verification._id });
+		return res.json({ success: false, error: "User not found" });
+	}
+
+	if (user.telegramId) {
+		await TelegramLinking.deleteOne({ _id: verification._id });
+		return res.json({
+			success: false,
+			error: "Telegram account already linked",
+		});
+	}
+
+	await UserAccount.updateOne(
+		{ userId },
+		{
+			telegramId: verification.telegramChatId,
+			telegramUsername: verification.telegramUsername,
+			telegramChatId: verification.telegramChatId,
+		},
+	);
+
+	await TelegramLinking.deleteOne({ _id: verification._id });
+
+	return res.json({
+		success: true,
+		message: "Telegram account linked successfully",
+	});
+});
+
+app.post("/telegram/webhook", async (req, res) => {
+	const update = req.body;
+
+	console.log("[telegram-webhook] Received:", JSON.stringify(update));
+
+	if (!update.message || !update.message.text) {
+		return res.json({ ok: true });
+	}
+
+	const chatId = String(update.message.chat.id);
+	const username = update.message.from?.username?.toLowerCase();
+	const firstName = update.message.from?.first_name;
+	const text = update.message.text.trim();
+
+	if (!text.startsWith("/start")) {
+		return res.json({ ok: true });
+	}
+
+	if (!username) {
+		await require("./services/telegram-service").sendTelegramMessage(
+			chatId,
+			`👋 Welcome to SocketFi${firstName ? `, ${firstName}` : ""}!\n\nTo link your Telegram account, please go to the app and initiate the linking process.`,
+		);
+		return res.json({ ok: true });
+	}
+
+	const pendingRequest = await TelegramLinking.findOne({
+		telegramUsername: username,
+		status: "PENDING",
+	}).lean();
+
+	if (!pendingRequest || new Date(pendingRequest.expiresAt) < new Date()) {
+		await require("./services/telegram-service").sendTelegramMessage(
+			chatId,
+			`👋 Welcome to SocketFi${firstName ? `, ${firstName}` : ""}!\n\nTo link your Telegram account, please go to the app and initiate the linking process.`,
+		);
+		return res.json({ ok: true });
+	}
+
+	const existingOtpSent = await TelegramLinking.findOne({
+		telegramUsername: username,
+		status: "OTP_SENT",
+	}).lean();
+
+	if (existingOtpSent && new Date(existingOtpSent.expiresAt) > new Date()) {
+		await require("./services/telegram-service").sendTelegramMessage(
+			chatId,
+			`⏰ You already have an OTP sent. Please check your messages and enter the code in the app.\n\nIf you need a new OTP, please initiate a new linking request from the app.`,
+		);
+		return res.json({ ok: true });
+	}
+
+	if (existingOtpSent) {
+		await TelegramLinking.deleteOne({ _id: existingOtpSent._id });
+	}
+
+	const otp = String(randomInt(100000, 999999));
+	const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+	await TelegramLinking.findOneAndUpdate(
+		{ _id: pendingRequest._id },
+		{
+			otpCode: otp,
+			telegramChatId: chatId,
+			status: "OTP_SENT",
+			expiresAt,
+		},
+	);
+
+	console.log(`[telegram-webhook] OTP generated for ${username}: ${otp}`);
+
+	await require("./services/telegram-service").sendOtpToTelegram(chatId, otp);
+
+	return res.json({ ok: true });
+});
+
+app.get("/telegram/set-webhook", async (req, res) => {
+	try {
+		const response = await axios.post(process.env.TELEGRAM_WEBHOOK_ENDPOINT, {
+			url: process.env.TELEGRAM_WEBHOOK_URL,
+		});
+
+		console.log(response.data.description);
+		res.json({ response: response.data.description });
+	} catch (error) {
+		console.error(`⚠️ Failed to set Telegram webhook: ${error}`);
+	}
 });
 
 //Activates (creates) account on a given network
@@ -946,6 +1204,8 @@ app.post("/activate-account", async (req, res) => {
 				twitterProfile: updatedUser.twitterProfile || null,
 				discordId: updatedUser.discordId || null,
 				discordProfile: updatedUser.discordProfile || null,
+				telegramId: updatedUser.telegramId || null,
+				telegramUsername: updatedUser.telegramUsername || null,
 			};
 
 			progress.push(user?.id, {
