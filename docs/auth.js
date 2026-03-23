@@ -287,22 +287,22 @@
  *       401: { description: Missing/invalid bearer token }
  */
 
-// /**
-//  * @swagger
-//  * /telegram/set-webhook:
-//  *   get:
-//  *     tags: [Auth]
-//  *     summary: Set telegram bot webhook endpoint
-// //  *     description: Receives updates from the Telegram bot. Handles /start command to send OTP to the user.
-// //  *     requestBody:
-// //  *       required: true
-// //  *       content:
-// //  *         application/json:
-// //  *           schema:
-// //  *             type: object
-// //  *     responses:
-//  *       200: { description: Webhook processed }
-//  */
+/**
+ * @swagger
+ * /telegram/set-webhook:
+ *   get:
+ *     tags: [Auth]
+ *     summary: Set telegram bot webhook endpoint
+//  *     description: Receives updates from the Telegram bot. Handles /start command to send OTP to the user.
+//  *     requestBody:
+//  *       required: true
+//  *       content:
+//  *         application/json:
+//  *           schema:
+//  *             type: object
+//  *     responses:
+ *       200: { description: Webhook processed }
+ */
 
 /**
  * @swagger

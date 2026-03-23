@@ -2,7 +2,7 @@
 const swaggerJSDoc = require("swagger-jsdoc");
 
 const servers =
-  process.env.NODE_ENV === "PRODUCTION"
+  process.env.ENV === "PRODUCTION"
     ? [
         { url: "https://server.socket.fi", description: "Prod (root)" },
         { url: "https://app.socket.fi", description: "Prod (app)" },
