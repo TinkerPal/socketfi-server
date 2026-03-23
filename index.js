@@ -74,7 +74,7 @@ const { isReservedUsername } = require("./models/reserved_usernames");
 const {
   normalizeAccessSettings,
 } = require("./soroban/account-settings-helper");
-const sameSiteConfig = process.env.MODE === "PRODUCTION" ? "none" : "none";
+const sameSiteConfig = process.env.ENV === "PRODUCTION" ? "none" : "none";
 
 const port = process.env.PORT || 3000;
 
@@ -97,8 +97,14 @@ const allowedOrigins = [
   "http://localhost:5173",
 ];
 
-const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:5173";
-const rp_id = process.env.RP_ID || "localhost";
+const CLIENT_URL =
+  process.env.ENV === "PRODUCTION"
+    ? process.env.CLIENT_URL
+    : "http://localhost:5173";
+
+const rp_id =
+  process.env.ENV === "PRODUCTION" ? process.env.RP_ID : "localhost";
+
 const expectedOrigin = [
   CLIENT_URL,
   "android:apk-key-hash:nUBmf6HB48iZc6HdxHVr7fPSg8ff1gG6xTkK3e0CbQ4",
