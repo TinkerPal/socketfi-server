@@ -9,7 +9,7 @@ passport.use(
 			clientID: process.env.DISCORD_CLIENT_ID,
 			clientSecret: process.env.DISCORD_CLIENT_SECRET,
 			callbackURL:
-				process.env.NODE_ENV === "production"
+				process.env.ENV === "PRODUCTION"
 					? process.env.DISCORD_CALLBACK_PROD
 					: process.env.DISCORD_CALLBACK_DEV,
 			scope: ["identify", "email"],
@@ -35,18 +35,15 @@ passport.use(
 					},
 				};
 
-				await UserAccount.updateOne(
-					{ userId },
-					{ $set: discordData }
-				);
+				await UserAccount.updateOne({ userId }, { $set: discordData });
 
 				done(null, { userId, ...discordData });
 			} catch (err) {
 				console.error("[passport] Discord OAuth error:", err);
 				done(err);
 			}
-		}
-	)
+		},
+	),
 );
 
 module.exports = passport;
