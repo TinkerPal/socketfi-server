@@ -130,16 +130,16 @@ app.use(
 
 app.use(
 	session({
-		name: "twitterSession",
+		name: "socketfiSession",
 		secret:
 			process.env.SESSION_SECRET || "fallback-secret-change-in-production",
 		resave: false,
 		saveUninitialized: true,
 		cookie: {
-			maxAge: 10 * 60 * 1000,
-			sameSite: process.env.ENV === "PRODUCTION" ? "None" : "lax",
-			secure: process.env.ENV === "PRODUCTION",
-			httpOnly: true,
+			sameSite: process.env.ENV === "PRODUCTION" ? "none" : "lax",
+			secure: process.env.ENV === "PRODUCTION" ? true : false,
+			httpOnly: process.env.ENV === "PRODUCTION" ? true : false,
+			maxAge: 3 * 60 * 1000,
 		},
 	}),
 );
@@ -449,8 +449,6 @@ app.post("/verify-auth", async (req, res) => {
 			expectedRPID: rp_id,
 		});
 
-		console.log("Find 2");
-
 		progress.push(id, {
 			step: "new account verification",
 			status: "start",
@@ -467,8 +465,6 @@ app.post("/verify-auth", async (req, res) => {
 				status: "start",
 				detail: "Generating Wallet BLS Keys",
 			});
-
-			console.log(nodes);
 
 			for (let i = 0; i < nodes.length; i++) {
 				const blsKey = await nodeInitGenKey(nodes[i].url, network);
@@ -726,16 +722,6 @@ app.post("/verify-email", async (req, res) => {
 });
 
 app.get("/init-twitter-auth", async (req, res) => {
-	if (
-		!process.env.TWITTER_CONSUMER_KEY ||
-		!process.env.TWITTER_CONSUMER_SECRET
-	) {
-		console.error(
-			"[init-twitter-auth] Missing TWITTER_CONSUMER_KEY or TWITTER_CONSUMER_SECRET",
-		);
-		return res.status(500).json({ error: "Twitter OAuth not configured" });
-	}
-
 	const { token } = req.query;
 	if (!token) {
 		return res.status(401).json({ error: "token query param is required" });
@@ -746,9 +732,10 @@ app.get("/init-twitter-auth", async (req, res) => {
 	} catch (e) {
 		return res.status(401).json({ error: "Invalid token" });
 	}
-	const { userId } = accessVerification;
 
-	// const userId = "jhfkjfkfjflkflkf";
+	console.log({ accessVerification });
+
+	const { userId } = accessVerification;
 
 	req.session.twitter_auth_context = { userId };
 
