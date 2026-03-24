@@ -74,6 +74,8 @@ const { isReservedUsername } = require("./models/reserved_usernames");
 const {
 	normalizeAccessSettings,
 } = require("./soroban/account-settings-helper");
+const jwt = require("jsonwebtoken");
+
 const sameSiteConfig = process.env.ENV === "PRODUCTION" ? "none" : "none";
 
 const port = process.env.PORT || 3000;
@@ -759,20 +761,87 @@ app.get("/init-twitter-auth", async (req, res) => {
 	});
 });
 
-app.get("/init-discord-auth", async (req, res) => {
-	if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
-		console.error(
-			"[init-discord-auth] Missing DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET",
-		);
-		return res.status(500).json({ error: "Discord OAuth not configured" });
-	}
+// app.get("/init-twitter-auth", async (req, res) => {
+// 	const { token } = req.query;
 
+// 	if (!token) {
+// 		return res.status(401).json({ error: "token required" });
+// 	}
+
+// 	let accessVerification;
+// 	try {
+// 		accessVerification = authenticateToken(token);
+// 	} catch (e) {
+// 		return res.status(401).json({ error: "Invalid token" });
+// 	}
+
+// 	const { userId } = accessVerification;
+
+// 	// 🔥 Create short-lived state token
+// 	const state = jwt.sign(
+// 		{ userId },
+// 		process.env.JWT_SECRET,
+// 		{ expiresIn: "5m" }, // short expiry
+// 	);
+
+// 	console.log({ state });
+
+// 	// 🔥 Pass state into OAuth
+// 	passport.authenticate("twitter", {
+// 		state,
+// 	})(req, res);
+// });
+
+// app.get("/init-discord-auth", async (req, res) => {
+// 	if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
+// 		console.error(
+// 			"[init-discord-auth] Missing DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET",
+// 		);
+// 		return res.status(500).json({ error: "Discord OAuth not configured" });
+// 	}
+
+// 	const { token } = req.query;
+
+// 	if (!token) {
+// 		return res
+// 			.status(401)
+// 			.json({ error: "accessToken query param is required" });
+// 	}
+
+// 	let accessVerification;
+// 	try {
+// 		accessVerification = authenticateToken(token);
+// 	} catch (e) {
+// 		return res.status(401).json({ error: "Invalid token" });
+// 	}
+
+// 	const { userId } = accessVerification;
+
+// 	// const userId = "jhfkjfkfjflkflkf";
+
+// 	req.session.discord_auth_context = { userId };
+
+// 	passport.authenticate("discord")(req, res, (err, user, info) => {
+// 		if (err) {
+// 			console.error("[init-discord-auth] Passport error:", err);
+// 			return res
+// 				.status(500)
+// 				.json({ error: "Unexpected passport error", detail: err.message });
+// 		}
+// 		if (!user) {
+// 			console.error("[init-discord-auth] No user returned:", info);
+// 			return res
+// 				.status(500)
+// 				.json({ error: "Unexpected passport error", detail: "no user" });
+// 		}
+// 	});
+// });
+
+app.get("/init-discord-auth", async (req, res) => {
 	const { token } = req.query;
 
 	if (!token) {
-		return res
-			.status(401)
-			.json({ error: "accessToken query param is required" });
+		return res.status(401).json({ error: "token required" });
 	}
 
 	let accessVerification;
@@ -784,24 +853,19 @@ app.get("/init-discord-auth", async (req, res) => {
 
 	const { userId } = accessVerification;
 
-	// const userId = "jhfkjfkfjflkflkf";
+	// 🔥 Create short-lived state token
+	const state = jwt.sign(
+		{ userId },
+		process.env.JWT_SECRET,
+		{ expiresIn: "5m" }, // short expiry
+	);
 
-	req.session.discord_auth_context = { userId };
+	console.log({ state });
 
-	passport.authenticate("discord")(req, res, (err, user, info) => {
-		if (err) {
-			console.error("[init-discord-auth] Passport error:", err);
-			return res
-				.status(500)
-				.json({ error: "Unexpected passport error", detail: err.message });
-		}
-		if (!user) {
-			console.error("[init-discord-auth] No user returned:", info);
-			return res
-				.status(500)
-				.json({ error: "Unexpected passport error", detail: "no user" });
-		}
-	});
+	// 🔥 Pass state into OAuth
+	passport.authenticate("discord", {
+		state,
+	})(req, res);
 });
 
 app.post("/init-telegram-link", async (req, res) => {
