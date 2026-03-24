@@ -11,9 +11,12 @@ router.get("/twitter/callback", (req, res, next) => {
 	passport.authenticate("twitter", (err, user) => {
 		console.log({ err, user });
 		if (err || !user) {
+			const errorMsg = err?.message
+				? encodeURIComponent(err.message)
+				: "Twitter authentication failed";
 			console.error("[twitter-callback] Auth failed:", err?.message);
 			return res.redirect(
-				`${CLIENT_URL}/account-configurations?twitter=failed`,
+				`${CLIENT_URL}/account-configurations?twitter=failed&error=${errorMsg}`,
 			);
 		}
 		return res.redirect(`${CLIENT_URL}/account-configurations`);
