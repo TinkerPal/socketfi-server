@@ -749,6 +749,8 @@ app.get("/init-twitter-auth", async (req, res, next) => {
 				.status(500)
 				.json({ error: "Session error", detail: err.message });
 		}
+
+		console.log("Session saved", req.session);
 		passport.authenticate("twitter")(req, res, next);
 	});
 
