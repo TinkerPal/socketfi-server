@@ -128,13 +128,15 @@ app.use(
 	}),
 );
 
+app.set("trust proxy", 1);
+
 app.use(
 	session({
 		name: "socketfiSession",
 		secret:
 			process.env.SESSION_SECRET || "fallback-secret-change-in-production",
 		resave: false,
-		saveUninitialized: true,
+		saveUninitialized: false,
 		cookie: {
 			sameSite: process.env.ENV === "PRODUCTION" ? "none" : "lax",
 			secure: process.env.ENV === "PRODUCTION" ? true : false,
