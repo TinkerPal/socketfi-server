@@ -140,6 +140,8 @@ app.use(
 			secure: process.env.ENV === "PRODUCTION" ? true : false,
 			httpOnly: process.env.ENV === "PRODUCTION" ? true : false,
 			maxAge: 3 * 60 * 1000,
+			domain: process.env.ENV === "PRODUCTION" ? ".socket.fi" : undefined, // Add this
+			path: "/",
 		},
 	}),
 );
