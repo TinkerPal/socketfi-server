@@ -30,6 +30,15 @@ passport.use(
 					return done(new Error("No userId in session context"));
 				}
 
+				const existingTwitter = await UserAccount.findOne({
+					twitterId: profile._json.id_str,
+					userId: { $ne: userId },
+				});
+
+				if (existingTwitter) {
+					return done(new Error("Twitter account already linked to another user"));
+				}
+
 				const twitterData = {
 					twitterId: profile._json.id_str,
 					twitterProfile: {

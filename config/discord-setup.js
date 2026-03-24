@@ -87,6 +87,15 @@ passport.use(
 
 				const { userId } = decoded;
 
+				const existingDiscord = await UserAccount.findOne({
+					discordId: profile.id,
+					userId: { $ne: userId },
+				});
+
+				if (existingDiscord) {
+					return done(new Error("Discord account already linked to another user"));
+				}
+
 				const discordData = {
 					discordId: profile.id,
 					discordProfile: {
