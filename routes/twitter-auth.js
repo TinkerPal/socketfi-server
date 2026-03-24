@@ -9,7 +9,7 @@ const CLIENT_URL =
 
 router.get("/twitter/callback", (req, res, next) => {
 	passport.authenticate("twitter", (err, user) => {
-		console.log({ err, user });
+		console.log({ err, user }, req.session);
 		if (err || !user) {
 			const errorMsg = err?.message
 				? encodeURIComponent(err.message)
