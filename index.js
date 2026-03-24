@@ -75,6 +75,15 @@ const {
 	normalizeAccessSettings,
 } = require("./soroban/account-settings-helper");
 const jwt = require("jsonwebtoken");
+const MongoDBStore = require("connect-mongodb-session")(session);
+
+const store = new MongoDBStore({
+	uri: MONGODB_URI,
+	collection: "sessions",
+	expires: 1000 * 60 * 10, // 10 minutes
+});
+
+store.on("error", (err) => console.error("Session store error:", err));
 
 const sameSiteConfig = process.env.ENV === "PRODUCTION" ? "none" : "none";
 
@@ -139,11 +148,12 @@ app.use(
 			process.env.SESSION_SECRET || "fallback-secret-change-in-production",
 		resave: false,
 		saveUninitialized: false,
+		store,
 		cookie: {
 			sameSite: process.env.ENV === "PRODUCTION" ? "none" : "lax",
 			secure: process.env.ENV === "PRODUCTION" ? true : false,
 			httpOnly: process.env.ENV === "PRODUCTION" ? true : false,
-			maxAge: 3 * 60 * 1000,
+			maxAge: 10 * 60 * 1000,
 			domain: process.env.ENV === "PRODUCTION" ? ".socket.fi" : undefined, // Add this
 			path: "/",
 		},
