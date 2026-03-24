@@ -6,8 +6,8 @@ const Schema = mongoose.Schema;
 const DB_PASSWORD = process.env.DB_PASSWORD;
 const DB_USER = process.env.DB_USER;
 
-// const MONGODB_URI = `mongodb+srv://${DB_USER}:${DB_PASSWORD}@socketfi.y9aiiy4.mongodb.net/socketfi?retryWrites=true&w=majority&appName=socketfi`;
-const MONGODB_URI = `mongodb://admin:Jideotetic012345$@localhost:27017/?authSource=admin`;
+const MONGODB_URI = `mongodb+srv://${DB_USER}:${DB_PASSWORD}@socketfi.y9aiiy4.mongodb.net/socketfi?retryWrites=true&w=majority&appName=socketfi`;
+// const MONGODB_URI = `mongodb://admin:Jideotetic012345$@localhost:27017/?authSource=admin`;
 
 function normalizeNetwork(n) {
 	const key = String(n || "")
