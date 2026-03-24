@@ -6,5 +6,5 @@ services:
     ports:
       - "3020:3020"
     environment:
-      ENV: PRODUCTION
+      ENV: DEVELOPMENT
     restart: always
