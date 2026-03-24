@@ -9,6 +9,7 @@ const CLIENT_URL =
 
 router.get("/discord/callback", (req, res, next) => {
 	passport.authenticate("discord", (err, user) => {
+		console.log({ user, err });
 		if (err || !user) {
 			console.error("[discord-callback] Auth failed:", err?.message);
 			return res.redirect(
