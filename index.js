@@ -9,7 +9,7 @@ const swaggerUi = require("swagger-ui-express");
 const { swaggerSpec } = require("./swagger");
 const passport = require("passport");
 const session = require("express-session");
-require("./config/passport-setup");
+require("./config/twitter-setup");
 require("./config/discord-setup");
 
 const {
