@@ -742,9 +742,19 @@ app.get("/init-twitter-auth", async (req, res, next) => {
 
 	req.session.twitter_auth_context = { userId };
 
-	passport.authenticate("twitter", {
-		session: false,
-	})(req, res, next);
+	req.session.save((err) => {
+		if (err) {
+			console.error("[init-twitter-auth] Session save error:", err);
+			return res
+				.status(500)
+				.json({ error: "Session error", detail: err.message });
+		}
+		passport.authenticate("twitter")(req, res, next);
+	});
+
+	// passport.authenticate("twitter", {
+	// 	session: false,
+	// })(req, res, next);
 	// req.session.save((err) => {
 	// 	if (err) {
 	// 		console.error("[init-twitter-auth] Session save error:", err);
