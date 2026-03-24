@@ -8,8 +8,8 @@ const CLIENT_URL =
 		: "http://localhost:5173";
 
 router.get("/twitter/callback", (req, res, next) => {
-	console.log({ req });
 	passport.authenticate("twitter", (err, user) => {
+		console.log({ err, user });
 		if (err || !user) {
 			console.error("[twitter-callback] Auth failed:", err?.message);
 			return res.redirect(
