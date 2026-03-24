@@ -988,7 +988,7 @@ app.post("/verify-telegram-otp", async (req, res) => {
 
 	const verification = await TelegramLinking.findOne({
 		userId,
-		otpCode: String(otp).trim(),
+		otp: String(otp).trim(),
 		status: "OTP_SENT",
 	}).lean();
 
@@ -1108,15 +1108,15 @@ app.post("/telegram/webhook", async (req, res) => {
 		const otp = String(randomInt(100000, 999999));
 		const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-		await TelegramLinking.findOneAndUpdate(
-			{ _id: pendingRequest._id },
-			{
-				otpCode: otp,
-				telegramChatId: chatId,
-				status: "OTP_SENT",
-				expiresAt,
-			},
-		);
+	await TelegramLinking.findOneAndUpdate(
+		{ _id: pendingRequest._id },
+		{
+			otp: otp,
+			telegramChatId: chatId,
+			status: "OTP_SENT",
+			expiresAt,
+		},
+	);
 
 		console.log(`[telegram-webhook] OTP generated for ${username}: ${otp}`);
 
