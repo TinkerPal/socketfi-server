@@ -148,7 +148,7 @@ app.use(
 			process.env.SESSION_SECRET || "fallback-secret-change-in-production",
 		resave: false,
 		saveUninitialized: false,
-		store,
+		// store,
 		cookie: {
 			sameSite: process.env.ENV === "PRODUCTION" ? "none" : "lax",
 			secure: process.env.ENV === "PRODUCTION" ? true : false,
@@ -755,19 +755,31 @@ app.get("/init-twitter-auth", async (req, res) => {
 
 	req.session.twitter_auth_context = { userId };
 
-	passport.authenticate("twitter")(req, res, (err, user, info) => {
+	req.session.save((err) => {
 		if (err) {
-			console.error("[init-twitter-auth] Passport error:", err);
+			console.error("[init-twitter-auth] Session save error:", err);
 			return res
 				.status(500)
-				.json({ error: "Unexpected passport error", detail: err.message });
+				.json({ error: "Session error", detail: err.message });
 		}
-		if (!user) {
-			console.error("[init-twitter-auth] No user returned:", info);
-			return res
-				.status(500)
-				.json({ error: "Unexpected passport error", detail: "no user" });
-		}
+		passport.authenticate("twitter", { session: false })(
+			req,
+			res,
+			(err, user, info) => {
+				if (err) {
+					console.error("[init-twitter-auth] Passport error:", err);
+					return res
+						.status(500)
+						.json({ error: "Unexpected passport error", detail: err.message });
+				}
+				if (!user) {
+					console.error("[init-twitter-auth] No user returned:", info);
+					return res
+						.status(500)
+						.json({ error: "Unexpected passport error", detail: "no user" });
+				}
+			},
+		);
 	});
 });
 
@@ -1055,7 +1067,14 @@ app.post("/telegram/webhook", async (req, res) => {
 		const firstName = update.message.from?.first_name;
 		const text = update.message.text.trim();
 
-		console.log("[telegram-webhook] ChatId:", chatId, "Username:", username, "Text:", text);
+		console.log(
+			"[telegram-webhook] ChatId:",
+			chatId,
+			"Username:",
+			username,
+			"Text:",
+			text,
+		);
 
 		if (!text.startsWith("/start")) {
 			return res.json({ ok: true });
@@ -1108,15 +1127,15 @@ app.post("/telegram/webhook", async (req, res) => {
 		const otp = String(randomInt(100000, 999999));
 		const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
-	await TelegramLinking.findOneAndUpdate(
-		{ _id: pendingRequest._id },
-		{
-			otp: otp,
-			telegramChatId: chatId,
-			status: "OTP_SENT",
-			expiresAt,
-		},
-	);
+		await TelegramLinking.findOneAndUpdate(
+			{ _id: pendingRequest._id },
+			{
+				otp: otp,
+				telegramChatId: chatId,
+				status: "OTP_SENT",
+				expiresAt,
+			},
+		);
 
 		console.log(`[telegram-webhook] OTP generated for ${username}: ${otp}`);
 
@@ -1146,7 +1165,9 @@ app.get("/telegram/set-webhook", async (req, res) => {
 app.get("/telegram/get-webhook-info", async (req, res) => {
 	try {
 		const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-		const response = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`);
+		const response = await axios.get(
+			`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`,
+		);
 		res.json(response.data);
 	} catch (error) {
 		console.error(`⚠️ Failed to get webhook info: ${error}`);
