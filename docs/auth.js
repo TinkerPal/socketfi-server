@@ -183,10 +183,10 @@
  *       Authenticates the user via JWT accessToken query param, stores context in session,
  *       then redirects the browser to Twitter OAuth. After the user authorizes, Twitter redirects
  *       back to `/auth/twitter/callback`, which stores the Twitter profile and redirects to
- *       `${CLIENT_URL}/settings?twitter=success`.
+ *       `${CLIENT_URL}/account-configurations?twitter=success`.
  *     parameters:
  *       - in: query
- *         name: accessToken
+ *         name: token
  *         required: true
  *         schema: { type: string }
  *         description: JWT access token of the logged-in user
@@ -206,10 +206,10 @@
  *       Authenticates the user via accessToken query param, stores context in session,
  *       then redirects the browser to Discord OAuth. After the user authorizes, Discord redirects
  *       back to `/auth/discord/callback`, which stores the Discord profile and redirects to
- *       `${CLIENT_URL}/settings?discord=success`.
+ *       `${CLIENT_URL}/account-configurations?discord=success`.
  *     parameters:
  *       - in: query
- *         name: accessToken
+ *         name: token
  *         required: true
  *         schema: { type: string }
  *         description: JWT access token of the logged-in user
