@@ -24,6 +24,8 @@ passport.use(
 		},
 		async (req, token, tokenSecret, profile, done) => {
 			try {
+				console.log(req.session);
+
 				const userId = req.session?.twitter_auth_context?.userId;
 
 				if (!userId) {
@@ -36,7 +38,9 @@ passport.use(
 				});
 
 				if (existingTwitter) {
-					return done(new Error("Twitter account already linked to another user"));
+					return done(
+						new Error("Twitter account already linked to another user"),
+					);
 				}
 
 				const twitterData = {

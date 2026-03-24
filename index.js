@@ -75,15 +75,6 @@ const {
 	normalizeAccessSettings,
 } = require("./soroban/account-settings-helper");
 const jwt = require("jsonwebtoken");
-const MongoDBStore = require("connect-mongodb-session")(session);
-
-const store = new MongoDBStore({
-	uri: MONGODB_URI,
-	collection: "sessions",
-	expires: 1000 * 60 * 10, // 10 minutes
-});
-
-store.on("error", (err) => console.error("Session store error:", err));
 
 const sameSiteConfig = process.env.ENV === "PRODUCTION" ? "none" : "none";
 
@@ -147,15 +138,13 @@ app.use(
 		secret:
 			process.env.SESSION_SECRET || "fallback-secret-change-in-production",
 		resave: false,
-		saveUninitialized: false,
-		// store,
+		saveUninitialized: true,
+		proxy: process.env.ENV === "PRODUCTION" ? true : false,
 		cookie: {
 			sameSite: process.env.ENV === "PRODUCTION" ? "none" : "lax",
 			secure: process.env.ENV === "PRODUCTION" ? true : false,
 			httpOnly: process.env.ENV === "PRODUCTION" ? true : false,
 			maxAge: 10 * 60 * 1000,
-			domain: process.env.ENV === "PRODUCTION" ? ".socket.fi" : undefined, // Add this
-			path: "/",
 		},
 	}),
 );
@@ -737,7 +726,7 @@ app.post("/verify-email", async (req, res) => {
 	return res.json({ message: "Email verified and added successfully" });
 });
 
-app.get("/init-twitter-auth", async (req, res) => {
+app.get("/init-twitter-auth", async (req, res, next) => {
 	const { token } = req.query;
 	if (!token) {
 		return res.status(401).json({ error: "token query param is required" });
@@ -749,38 +738,39 @@ app.get("/init-twitter-auth", async (req, res) => {
 		return res.status(401).json({ error: "Invalid token" });
 	}
 
-	console.log({ accessVerification });
-
 	const { userId } = accessVerification;
 
 	req.session.twitter_auth_context = { userId };
 
-	req.session.save((err) => {
-		if (err) {
-			console.error("[init-twitter-auth] Session save error:", err);
-			return res
-				.status(500)
-				.json({ error: "Session error", detail: err.message });
-		}
-		passport.authenticate("twitter", { session: false })(
-			req,
-			res,
-			(err, user, info) => {
-				if (err) {
-					console.error("[init-twitter-auth] Passport error:", err);
-					return res
-						.status(500)
-						.json({ error: "Unexpected passport error", detail: err.message });
-				}
-				if (!user) {
-					console.error("[init-twitter-auth] No user returned:", info);
-					return res
-						.status(500)
-						.json({ error: "Unexpected passport error", detail: "no user" });
-				}
-			},
-		);
-	});
+	passport.authenticate("twitter", {
+		session: false,
+	})(req, res, next);
+	// req.session.save((err) => {
+	// 	if (err) {
+	// 		console.error("[init-twitter-auth] Session save error:", err);
+	// 		return res
+	// 			.status(500)
+	// 			.json({ error: "Session error", detail: err.message });
+	// 	}
+	// 	passport.authenticate("twitter", { session: false })(
+	// 		req,
+	// 		res,
+	// 		(err, user, info) => {
+	// 			if (err) {
+	// 				console.error("[init-twitter-auth] Passport error:", err);
+	// 				return res
+	// 					.status(500)
+	// 					.json({ error: "Unexpected passport error", detail: err.message });
+	// 			}
+	// 			if (!user) {
+	// 				console.error("[init-twitter-auth] No user returned:", info);
+	// 				return res
+	// 					.status(500)
+	// 					.json({ error: "Unexpected passport error", detail: "no user" });
+	// 			}
+	// 		},
+	// 	);
+	// });
 });
 
 // app.get("/init-twitter-auth", async (req, res) => {
