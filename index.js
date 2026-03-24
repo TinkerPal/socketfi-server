@@ -1045,79 +1045,88 @@ app.post("/telegram/webhook", async (req, res) => {
 
 	console.log("[telegram-webhook] Received:", JSON.stringify(update));
 
-	if (!update.message || !update.message.text) {
-		return res.json({ ok: true });
-	}
+	try {
+		if (!update.message || !update.message.text) {
+			return res.json({ ok: true });
+		}
 
-	const chatId = String(update.message.chat.id);
-	const username = update.message.from?.username?.toLowerCase();
-	const firstName = update.message.from?.first_name;
-	const text = update.message.text.trim();
+		const chatId = String(update.message.chat.id);
+		const username = update.message.from?.username?.toLowerCase();
+		const firstName = update.message.from?.first_name;
+		const text = update.message.text.trim();
 
-	if (!text.startsWith("/start")) {
-		return res.json({ ok: true });
-	}
+		console.log("[telegram-webhook] ChatId:", chatId, "Username:", username, "Text:", text);
 
-	if (!username) {
-		await require("./services/telegram-service").sendTelegramMessage(
-			chatId,
-			`👋 Welcome to SocketFi${
-				firstName ? `, ${firstName}` : ""
-			}!\n\nTo link your Telegram account, please go to the app and initiate the linking process.`,
-		);
-		return res.json({ ok: true });
-	}
+		if (!text.startsWith("/start")) {
+			return res.json({ ok: true });
+		}
 
-	const pendingRequest = await TelegramLinking.findOne({
-		telegramUsername: username,
-		status: "PENDING",
-	}).lean();
+		if (!username) {
+			await require("./services/telegram-service").sendTelegramMessage(
+				chatId,
+				`👋 Welcome to SocketFi${
+					firstName ? `, ${firstName}` : ""
+				}!\n\nTo link your Telegram account, please go to the app and initiate the linking process.`,
+			);
+			return res.json({ ok: true });
+		}
 
-	if (!pendingRequest || new Date(pendingRequest.expiresAt) < new Date()) {
-		await require("./services/telegram-service").sendTelegramMessage(
-			chatId,
-			`👋 Welcome to SocketFi${
-				firstName ? `, ${firstName}` : ""
-			}!\n\nTo link your Telegram account, please go to the app and initiate the linking process.`,
-		);
-		return res.json({ ok: true });
-	}
+		const pendingRequest = await TelegramLinking.findOne({
+			telegramUsername: username,
+			status: "PENDING",
+		}).lean();
 
-	const existingOtpSent = await TelegramLinking.findOne({
-		telegramUsername: username,
-		status: "OTP_SENT",
-	}).lean();
+		console.log("[telegram-webhook] Pending request:", pendingRequest);
 
-	if (existingOtpSent && new Date(existingOtpSent.expiresAt) > new Date()) {
-		await require("./services/telegram-service").sendTelegramMessage(
-			chatId,
-			`⏰ You already have an OTP sent. Please check your messages and enter the code in the app.\n\nIf you need a new OTP, please initiate a new linking request from the app.`,
-		);
-		return res.json({ ok: true });
-	}
+		if (!pendingRequest || new Date(pendingRequest.expiresAt) < new Date()) {
+			await require("./services/telegram-service").sendTelegramMessage(
+				chatId,
+				`👋 Welcome to SocketFi${
+					firstName ? `, ${firstName}` : ""
+				}!\n\nTo link your Telegram account, please go to the app and initiate the linking process.`,
+			);
+			return res.json({ ok: true });
+		}
 
-	if (existingOtpSent) {
-		await TelegramLinking.deleteOne({ _id: existingOtpSent._id });
-	}
-
-	const otp = String(randomInt(100000, 999999));
-	const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-
-	await TelegramLinking.findOneAndUpdate(
-		{ _id: pendingRequest._id },
-		{
-			otpCode: otp,
-			telegramChatId: chatId,
+		const existingOtpSent = await TelegramLinking.findOne({
+			telegramUsername: username,
 			status: "OTP_SENT",
-			expiresAt,
-		},
-	);
+		}).lean();
 
-	console.log(`[telegram-webhook] OTP generated for ${username}: ${otp}`);
+		if (existingOtpSent && new Date(existingOtpSent.expiresAt) > new Date()) {
+			await require("./services/telegram-service").sendTelegramMessage(
+				chatId,
+				`⏰ You already have an OTP sent. Please check your messages and enter the code in the app.\n\nIf you need a new OTP, please initiate a new linking request from the app.`,
+			);
+			return res.json({ ok: true });
+		}
 
-	await require("./services/telegram-service").sendOtpToTelegram(chatId, otp);
+		if (existingOtpSent) {
+			await TelegramLinking.deleteOne({ _id: existingOtpSent._id });
+		}
 
-	return res.json({ ok: true });
+		const otp = String(randomInt(100000, 999999));
+		const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+		await TelegramLinking.findOneAndUpdate(
+			{ _id: pendingRequest._id },
+			{
+				otpCode: otp,
+				telegramChatId: chatId,
+				status: "OTP_SENT",
+				expiresAt,
+			},
+		);
+
+		console.log(`[telegram-webhook] OTP generated for ${username}: ${otp}`);
+
+		await require("./services/telegram-service").sendOtpToTelegram(chatId, otp);
+
+		return res.json({ ok: true });
+	} catch (error) {
+		console.error("[telegram-webhook] Error:", error.message);
+		return res.status(500).json({ ok: false, error: error.message });
+	}
 });
 
 app.get("/telegram/set-webhook", async (req, res) => {
@@ -1130,6 +1139,18 @@ app.get("/telegram/set-webhook", async (req, res) => {
 		res.json({ response: response.data.description });
 	} catch (error) {
 		console.error(`⚠️ Failed to set Telegram webhook: ${error}`);
+		res.status(500).json({ error: error.message });
+	}
+});
+
+app.get("/telegram/get-webhook-info", async (req, res) => {
+	try {
+		const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+		const response = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`);
+		res.json(response.data);
+	} catch (error) {
+		console.error(`⚠️ Failed to get webhook info: ${error}`);
+		res.status(500).json({ error: error.message });
 	}
 });
 
