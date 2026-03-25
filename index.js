@@ -62,6 +62,7 @@ const {
 	invokeContract,
 	invokeContractScVal,
 	BASE_FEE,
+  getVersionData,
 } = require("./soroban/soroban-methods");
 const { sseProgress } = require("./tracker/progress-tracker");
 const { progress } = require("./tracker/progress");
@@ -2711,37 +2712,15 @@ app.post("/get-account-stats", async (req, res) => {
 			}
 		}
 
-		let versionData = await contractGet(
-			internalSigner.publicKey(),
-			network,
-			contracts[network].MASTER_CONTRACT,
-			"get_all_versions",
-			[],
-		);
+    
 
-		const latestVersionObjArr = normalizeVersionRows(
-			versionData?.results?.[0]?.returnValueJson?.vec,
-		);
+	
 
-		const latestVersion = latestVersionObjArr.find(
-			(vr) => vr?.label === "latest",
-		);
+	
+	
 
-		let installedVersionData = await contractGet(
-			internalSigner.publicKey(),
-			network,
-			contractId,
-			"get_version",
-			[],
-		);
 
-		const installedVersion =
-			installedVersionData?.results[0]?.returnValueJson?.bytes;
-
-		const versionInfo = {
-			...latestVersion,
-			needUpdate: latestVersion?.wasm !== installedVersion,
-		};
+		const versionInfo = await getVersionData(contractId, network)
 
 		let accountSettings = await contractGet(
 			internalSigner.publicKey(),
