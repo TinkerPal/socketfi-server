@@ -75,6 +75,8 @@ const { isReservedUsername } = require("./models/reserved_usernames");
 const {
 	normalizeAccessSettings,
 } = require("./soroban/account-settings-helper");
+const jwt = require("jsonwebtoken");
+
 const sameSiteConfig = process.env.ENV === "PRODUCTION" ? "none" : "none";
 
 const port = process.env.PORT || 3000;
@@ -129,6 +131,8 @@ app.use(
 	}),
 );
 
+app.set("trust proxy", 1);
+
 app.use(
 	session({
 		name: "socketfiSession",
@@ -136,11 +140,12 @@ app.use(
 			process.env.SESSION_SECRET || "fallback-secret-change-in-production",
 		resave: false,
 		saveUninitialized: true,
+		proxy: process.env.ENV === "PRODUCTION" ? true : false,
 		cookie: {
 			sameSite: process.env.ENV === "PRODUCTION" ? "none" : "lax",
 			secure: process.env.ENV === "PRODUCTION" ? true : false,
 			httpOnly: process.env.ENV === "PRODUCTION" ? true : false,
-			maxAge: 3 * 60 * 1000,
+			maxAge: 10 * 60 * 1000,
 		},
 	}),
 );
@@ -722,7 +727,7 @@ app.post("/verify-email", async (req, res) => {
 	return res.json({ message: "Email verified and added successfully" });
 });
 
-app.get("/init-twitter-auth", async (req, res) => {
+app.get("/init-twitter-auth", async (req, res, next) => {
 	const { token } = req.query;
 	if (!token) {
 		return res.status(401).json({ error: "token query param is required" });
@@ -734,42 +739,134 @@ app.get("/init-twitter-auth", async (req, res) => {
 		return res.status(401).json({ error: "Invalid token" });
 	}
 
-	console.log({ accessVerification });
-
 	const { userId } = accessVerification;
 
 	req.session.twitter_auth_context = { userId };
 
-	passport.authenticate("twitter")(req, res, (err, user, info) => {
+	req.session.save((err) => {
 		if (err) {
-			console.error("[init-twitter-auth] Passport error:", err);
+			console.error("[init-twitter-auth] Session save error:", err);
 			return res
 				.status(500)
-				.json({ error: "Unexpected passport error", detail: err.message });
+				.json({ error: "Session error", detail: err.message });
 		}
-		if (!user) {
-			console.error("[init-twitter-auth] No user returned:", info);
-			return res
-				.status(500)
-				.json({ error: "Unexpected passport error", detail: "no user" });
-		}
+
+		console.log("Session saved", req.session);
+		passport.authenticate("twitter")(req, res, next);
 	});
+
+	// passport.authenticate("twitter", {
+	// 	session: false,
+	// })(req, res, next);
+	// req.session.save((err) => {
+	// 	if (err) {
+	// 		console.error("[init-twitter-auth] Session save error:", err);
+	// 		return res
+	// 			.status(500)
+	// 			.json({ error: "Session error", detail: err.message });
+	// 	}
+	// 	passport.authenticate("twitter", { session: false })(
+	// 		req,
+	// 		res,
+	// 		(err, user, info) => {
+	// 			if (err) {
+	// 				console.error("[init-twitter-auth] Passport error:", err);
+	// 				return res
+	// 					.status(500)
+	// 					.json({ error: "Unexpected passport error", detail: err.message });
+	// 			}
+	// 			if (!user) {
+	// 				console.error("[init-twitter-auth] No user returned:", info);
+	// 				return res
+	// 					.status(500)
+	// 					.json({ error: "Unexpected passport error", detail: "no user" });
+	// 			}
+	// 		},
+	// 	);
+	// });
 });
 
-app.get("/init-discord-auth", async (req, res) => {
-	if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
-		console.error(
-			"[init-discord-auth] Missing DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET",
-		);
-		return res.status(500).json({ error: "Discord OAuth not configured" });
-	}
+// app.get("/init-twitter-auth", async (req, res) => {
+// 	const { token } = req.query;
 
+// 	if (!token) {
+// 		return res.status(401).json({ error: "token required" });
+// 	}
+
+// 	let accessVerification;
+// 	try {
+// 		accessVerification = authenticateToken(token);
+// 	} catch (e) {
+// 		return res.status(401).json({ error: "Invalid token" });
+// 	}
+
+// 	const { userId } = accessVerification;
+
+// 	// 🔥 Create short-lived state token
+// 	const state = jwt.sign(
+// 		{ userId },
+// 		process.env.JWT_SECRET,
+// 		{ expiresIn: "5m" }, // short expiry
+// 	);
+
+// 	console.log({ state });
+
+// 	// 🔥 Pass state into OAuth
+// 	passport.authenticate("twitter", {
+// 		state,
+// 	})(req, res);
+// });
+
+// app.get("/init-discord-auth", async (req, res) => {
+// 	if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_CLIENT_SECRET) {
+// 		console.error(
+// 			"[init-discord-auth] Missing DISCORD_CLIENT_ID or DISCORD_CLIENT_SECRET",
+// 		);
+// 		return res.status(500).json({ error: "Discord OAuth not configured" });
+// 	}
+
+// 	const { token } = req.query;
+
+// 	if (!token) {
+// 		return res
+// 			.status(401)
+// 			.json({ error: "accessToken query param is required" });
+// 	}
+
+// 	let accessVerification;
+// 	try {
+// 		accessVerification = authenticateToken(token);
+// 	} catch (e) {
+// 		return res.status(401).json({ error: "Invalid token" });
+// 	}
+
+// 	const { userId } = accessVerification;
+
+// 	// const userId = "jhfkjfkfjflkflkf";
+
+// 	req.session.discord_auth_context = { userId };
+
+// 	passport.authenticate("discord")(req, res, (err, user, info) => {
+// 		if (err) {
+// 			console.error("[init-discord-auth] Passport error:", err);
+// 			return res
+// 				.status(500)
+// 				.json({ error: "Unexpected passport error", detail: err.message });
+// 		}
+// 		if (!user) {
+// 			console.error("[init-discord-auth] No user returned:", info);
+// 			return res
+// 				.status(500)
+// 				.json({ error: "Unexpected passport error", detail: "no user" });
+// 		}
+// 	});
+// });
+
+app.get("/init-discord-auth", async (req, res) => {
 	const { token } = req.query;
 
 	if (!token) {
-		return res
-			.status(401)
-			.json({ error: "accessToken query param is required" });
+		return res.status(401).json({ error: "token required" });
 	}
 
 	let accessVerification;
@@ -781,24 +878,19 @@ app.get("/init-discord-auth", async (req, res) => {
 
 	const { userId } = accessVerification;
 
-	// const userId = "jhfkjfkfjflkflkf";
+	// 🔥 Create short-lived state token
+	const state = jwt.sign(
+		{ userId },
+		process.env.JWT_SECRET,
+		{ expiresIn: "5m" }, // short expiry
+	);
 
-	req.session.discord_auth_context = { userId };
+	console.log({ state });
 
-	passport.authenticate("discord")(req, res, (err, user, info) => {
-		if (err) {
-			console.error("[init-discord-auth] Passport error:", err);
-			return res
-				.status(500)
-				.json({ error: "Unexpected passport error", detail: err.message });
-		}
-		if (!user) {
-			console.error("[init-discord-auth] No user returned:", info);
-			return res
-				.status(500)
-				.json({ error: "Unexpected passport error", detail: "no user" });
-		}
-	});
+	// 🔥 Pass state into OAuth
+	passport.authenticate("discord", {
+		state,
+	})(req, res);
 });
 
 app.post("/init-telegram-link", async (req, res) => {
@@ -911,7 +1003,7 @@ app.post("/verify-telegram-otp", async (req, res) => {
 
 	const verification = await TelegramLinking.findOne({
 		userId,
-		otpCode: String(otp).trim(),
+		otp: String(otp).trim(),
 		status: "OTP_SENT",
 	}).lean();
 
@@ -968,79 +1060,95 @@ app.post("/telegram/webhook", async (req, res) => {
 
 	console.log("[telegram-webhook] Received:", JSON.stringify(update));
 
-	if (!update.message || !update.message.text) {
-		return res.json({ ok: true });
-	}
+	try {
+		if (!update.message || !update.message.text) {
+			return res.json({ ok: true });
+		}
 
-	const chatId = String(update.message.chat.id);
-	const username = update.message.from?.username?.toLowerCase();
-	const firstName = update.message.from?.first_name;
-	const text = update.message.text.trim();
+		const chatId = String(update.message.chat.id);
+		const username = update.message.from?.username?.toLowerCase();
+		const firstName = update.message.from?.first_name;
+		const text = update.message.text.trim();
 
-	if (!text.startsWith("/start")) {
-		return res.json({ ok: true });
-	}
-
-	if (!username) {
-		await require("./services/telegram-service").sendTelegramMessage(
+		console.log(
+			"[telegram-webhook] ChatId:",
 			chatId,
-			`👋 Welcome to SocketFi${
-				firstName ? `, ${firstName}` : ""
-			}!\n\nTo link your Telegram account, please go to the app and initiate the linking process.`,
+			"Username:",
+			username,
+			"Text:",
+			text,
 		);
-		return res.json({ ok: true });
-	}
 
-	const pendingRequest = await TelegramLinking.findOne({
-		telegramUsername: username,
-		status: "PENDING",
-	}).lean();
+		if (!text.startsWith("/start")) {
+			return res.json({ ok: true });
+		}
 
-	if (!pendingRequest || new Date(pendingRequest.expiresAt) < new Date()) {
-		await require("./services/telegram-service").sendTelegramMessage(
-			chatId,
-			`👋 Welcome to SocketFi${
-				firstName ? `, ${firstName}` : ""
-			}!\n\nTo link your Telegram account, please go to the app and initiate the linking process.`,
-		);
-		return res.json({ ok: true });
-	}
+		if (!username) {
+			await require("./services/telegram-service").sendTelegramMessage(
+				chatId,
+				`👋 Welcome to SocketFi${
+					firstName ? `, ${firstName}` : ""
+				}!\n\nTo link your Telegram account, please go to the app and initiate the linking process.`,
+			);
+			return res.json({ ok: true });
+		}
 
-	const existingOtpSent = await TelegramLinking.findOne({
-		telegramUsername: username,
-		status: "OTP_SENT",
-	}).lean();
+		const pendingRequest = await TelegramLinking.findOne({
+			telegramUsername: username,
+			status: "PENDING",
+		}).lean();
 
-	if (existingOtpSent && new Date(existingOtpSent.expiresAt) > new Date()) {
-		await require("./services/telegram-service").sendTelegramMessage(
-			chatId,
-			`⏰ You already have an OTP sent. Please check your messages and enter the code in the app.\n\nIf you need a new OTP, please initiate a new linking request from the app.`,
-		);
-		return res.json({ ok: true });
-	}
+		console.log("[telegram-webhook] Pending request:", pendingRequest);
 
-	if (existingOtpSent) {
-		await TelegramLinking.deleteOne({ _id: existingOtpSent._id });
-	}
+		if (!pendingRequest || new Date(pendingRequest.expiresAt) < new Date()) {
+			await require("./services/telegram-service").sendTelegramMessage(
+				chatId,
+				`👋 Welcome to SocketFi${
+					firstName ? `, ${firstName}` : ""
+				}!\n\nTo link your Telegram account, please go to the app and initiate the linking process.`,
+			);
+			return res.json({ ok: true });
+		}
 
-	const otp = String(randomInt(100000, 999999));
-	const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
-
-	await TelegramLinking.findOneAndUpdate(
-		{ _id: pendingRequest._id },
-		{
-			otpCode: otp,
-			telegramChatId: chatId,
+		const existingOtpSent = await TelegramLinking.findOne({
+			telegramUsername: username,
 			status: "OTP_SENT",
-			expiresAt,
-		},
-	);
+		}).lean();
 
-	console.log(`[telegram-webhook] OTP generated for ${username}: ${otp}`);
+		if (existingOtpSent && new Date(existingOtpSent.expiresAt) > new Date()) {
+			await require("./services/telegram-service").sendTelegramMessage(
+				chatId,
+				`⏰ You already have an OTP sent. Please check your messages and enter the code in the app.\n\nIf you need a new OTP, please initiate a new linking request from the app.`,
+			);
+			return res.json({ ok: true });
+		}
 
-	await require("./services/telegram-service").sendOtpToTelegram(chatId, otp);
+		if (existingOtpSent) {
+			await TelegramLinking.deleteOne({ _id: existingOtpSent._id });
+		}
 
-	return res.json({ ok: true });
+		const otp = String(randomInt(100000, 999999));
+		const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+		await TelegramLinking.findOneAndUpdate(
+			{ _id: pendingRequest._id },
+			{
+				otp: otp,
+				telegramChatId: chatId,
+				status: "OTP_SENT",
+				expiresAt,
+			},
+		);
+
+		console.log(`[telegram-webhook] OTP generated for ${username}: ${otp}`);
+
+		await require("./services/telegram-service").sendOtpToTelegram(chatId, otp);
+
+		return res.json({ ok: true });
+	} catch (error) {
+		console.error("[telegram-webhook] Error:", error.message);
+		return res.status(500).json({ ok: false, error: error.message });
+	}
 });
 
 app.get("/telegram/set-webhook", async (req, res) => {
@@ -1053,6 +1161,20 @@ app.get("/telegram/set-webhook", async (req, res) => {
 		res.json({ response: response.data.description });
 	} catch (error) {
 		console.error(`⚠️ Failed to set Telegram webhook: ${error}`);
+		res.status(500).json({ error: error.message });
+	}
+});
+
+app.get("/telegram/get-webhook-info", async (req, res) => {
+	try {
+		const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+		const response = await axios.get(
+			`https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo`,
+		);
+		res.json(response.data);
+	} catch (error) {
+		console.error(`⚠️ Failed to get webhook info: ${error}`);
+		res.status(500).json({ error: error.message });
 	}
 });
 
