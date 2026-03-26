@@ -4,44 +4,35 @@ const ejs = require("ejs");
 const path = require("path");
 
 const transporter = nodemailer.createTransport({
-	host: process.env.MAIL_HOST,
-	port: process.env.MAIL_PORT,
-	secure: true,
-	// requireTLS: true,
-	auth: {
-		user: process.env.MAIL_USER,
-		pass: process.env.MAIL_PASS,
-	},
-	tls: { rejectUnauthorized: false },
+  host: process.env.MAIL_HOST,
+  port: process.env.MAIL_PORT,
+  secure: true,
+  // requireTLS: true,
+  auth: {
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
+  },
+  tls: { rejectUnauthorized: false },
 });
 
 async function sendOtpEmail(to, otp) {
-	const templatePath = path.join(
-		__dirname,
-		"..",
-		"views",
-		"emails",
-		"otp-email.ejs",
-	);
+  const templatePath = path.join(
+    __dirname,
+    "..",
+    "views",
+    "emails",
+    "otp-email.ejs"
+  );
 
-	const html = await ejs.renderFile(templatePath, { otp });
+  const html = await ejs.renderFile(templatePath, { otp });
 
-	console.log("[email-service] Attempting to send OTP email", {
-		to,
-		host: process.env.MAIL_HOST,
-		port: process.env.MAIL_PORT,
-		user: process.env.MAIL_USER,
-	});
-
-	await transporter.sendMail({
-		from: process.env.MAIL_USER,
-		to,
-		subject: "Your SocketFi Verification Code",
-		html,
-		text: ``,
-	});
-
-	console.log("[email-service] Email sent successfully");
+  await transporter.sendMail({
+    from: process.env.MAIL_USER,
+    to,
+    subject: "Your SocketFi Verification Code",
+    html,
+    text: ``,
+  });
 }
 
 module.exports = { sendOtpEmail };
