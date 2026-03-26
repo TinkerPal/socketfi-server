@@ -48,7 +48,7 @@ passport.use(
 						id: profile._json.id_str,
 						name: profile._json.name,
 						screenName: profile._json.screen_name,
-						profileImageUrl: profile._json.profile_image_url_https,
+						imageUrl: profile._json.profile_image_url_https,
 					},
 				};
 

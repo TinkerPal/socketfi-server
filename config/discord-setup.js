@@ -101,7 +101,7 @@ passport.use(
 						id: profile.id,
 						username: profile.username,
 						discriminator: profile.discriminator,
-						avatar: profile.avatar
+						imageUrl: profile.avatar
 							? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}`
 							: null,
 						email: profile.email || null,
