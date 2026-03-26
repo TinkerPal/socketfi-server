@@ -80,7 +80,7 @@ const userAccountSchema = new Schema(
 			},
 			name: String,
 			screenName: String,
-			profileImageUrl: String,
+			imageUrl: String,
 		},
 		discord: {
 			id: {
@@ -90,7 +90,7 @@ const userAccountSchema = new Schema(
 			},
 			username: String,
 			discriminator: String,
-			avatar: String,
+			imageUrl: String,
 			email: String,
 		},
 		telegram: {
@@ -100,6 +100,7 @@ const userAccountSchema = new Schema(
 				sparse: true,
 			},
 			username: String,
+			imageUrl: String,
 		},
 	},
 	{ timestamps: true, versionKey: false },
