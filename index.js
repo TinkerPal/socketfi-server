@@ -690,13 +690,13 @@ app.post("/verify-email", async (req, res) => {
     return res.status(400).json({ error: "Invalid verification code" });
   }
 
-  await UserAccount.updateOne(
-    { userId },
-    {
-      email: { address: normalizedEmail, verified: true },
-      $addToSet: { linkedAccounts: "email" },
-    }
-  );
+	await UserAccount.updateOne(
+		{ userId },
+		{
+			email: { id: randomUUID(), username: normalizedEmail, verified: true },
+			$addToSet: { linkedAccounts: "email" },
+		},
+	);
   await EmailVerification.deleteOne({ userId, email: normalizedEmail });
 
   return res.json({ message: "Email verified and added successfully" });

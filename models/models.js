@@ -61,7 +61,12 @@ const userAccountSchema = new Schema(
 			PUBLIC: { type: String, default: undefined, uppercase: true },
 		},
 		email: {
-			address: {
+			id: {
+				type: String,
+				unique: true,
+				sparse: true,
+			},
+			username: {
 				type: String,
 				lowercase: true,
 				trim: true,
@@ -132,7 +137,7 @@ userAccountSchema.index(
 );
 
 userAccountSchema.statics.getUserByEmail = async function (email) {
-	return this.findOne({ "email.address": String(email).trim().toLowerCase() });
+	return this.findOne({ "email.username": String(email).trim().toLowerCase() });
 };
 
 // Method to generate JWT token
