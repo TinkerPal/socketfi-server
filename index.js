@@ -599,7 +599,7 @@ app.post("/init-add-email", async (req, res) => {
 
   if (!existing) {
     const alreadyVerified = await UserAccount.findOne({
-      email: normalizedEmail,
+      "email.username": normalizedEmail,
     }).lean();
 
     if (alreadyVerified && alreadyVerified.userId !== userId) {
