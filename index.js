@@ -62,7 +62,7 @@ const {
 	invokeContract,
 	invokeContractScVal,
 	BASE_FEE,
-  getVersionData,
+	getVersionData,
 } = require("./soroban/soroban-methods");
 const { sseProgress } = require("./tracker/progress-tracker");
 const { progress } = require("./tracker/progress");
@@ -98,6 +98,7 @@ const allowedOrigins = [
 	"https://socket.fi",
 	"https://app.socket.fi",
 	"http://localhost:5173",
+	"http://localhost:5174",
 ];
 
 const CLIENT_URL =
@@ -227,13 +228,9 @@ app.get("/user", async (req, res) => {
 			userId: user.userId,
 			address: user.address,
 			email: user.email || null,
-			emailVerified: user.emailVerified || false,
-			twitterId: user.twitterId || null,
-			twitterProfile: user.twitterProfile || null,
-			discordId: user.discordId || null,
-			discordProfile: user.discordProfile || null,
-			telegramId: user.telegramId || null,
-			telegramUsername: user.telegramUsername || null,
+			twitter: user.twitter || null,
+			discord: user.discord || null,
+			telegram: user.telegram || null,
 		};
 
 		res.json({ user: clientUser });
@@ -414,13 +411,9 @@ app.post("/verify-auth", async (req, res) => {
 						passkey: user.passkey.publicKey,
 						address: user.address,
 						email: user.email || null,
-						emailVerified: user.emailVerified || false,
-						twitterId: user.twitterId || null,
-						twitterProfile: user.twitterProfile || null,
-						discordId: user.discordId || null,
-						discordProfile: user.discordProfile || null,
-						telegramId: user.telegramId || null,
-						telegramUsername: user.telegramUsername || null,
+						twitter: user.twitter || null,
+						discord: user.discord || null,
+						telegram: user.telegram || null,
 					};
 
 					progress.push(id, {
@@ -558,9 +551,9 @@ app.post("/verify-auth", async (req, res) => {
 				userId: user.userId,
 				address: user.address,
 				email: user.email || null,
-				emailVerified: user.emailVerified || false,
-				twitterId: user.twitterId || null,
-				twitterProfile: user.twitterProfile || null,
+				twitter: user.twitter || null,
+				discord: user.discord || null,
+				telegram: user.telegram || null,
 			};
 
 			progress.push(id, {
@@ -720,7 +713,10 @@ app.post("/verify-email", async (req, res) => {
 
 	await UserAccount.updateOne(
 		{ userId },
-		{ email: normalizedEmail, emailVerified: true },
+		{
+			email: { address: normalizedEmail, verified: true },
+			$addToSet: { linkedAccounts: "email" },
+		},
 	);
 	await EmailVerification.deleteOne({ userId, email: normalizedEmail });
 
@@ -1030,7 +1026,7 @@ app.post("/verify-telegram-otp", async (req, res) => {
 		return res.json({ success: false, error: "User not found" });
 	}
 
-	if (user.telegramId) {
+	if (user.telegram?.id) {
 		await TelegramLinking.deleteOne({ _id: verification._id });
 		return res.json({
 			success: false,
@@ -1041,9 +1037,11 @@ app.post("/verify-telegram-otp", async (req, res) => {
 	await UserAccount.updateOne(
 		{ userId },
 		{
-			telegramId: verification.telegramChatId,
-			telegramUsername: verification.telegramUsername,
-			telegramChatId: verification.telegramChatId,
+			telegram: {
+				id: verification.telegramChatId,
+				username: verification.telegramUsername,
+			},
+			$addToSet: { linkedAccounts: "telegram" },
 		},
 	);
 
@@ -1378,13 +1376,9 @@ app.post("/activate-account", async (req, res) => {
 				passkey: updatedUser.passkey.publicKey,
 				address: updatedUser.address,
 				email: updatedUser.email || null,
-				emailVerified: updatedUser.emailVerified || false,
-				twitterId: updatedUser.twitterId || null,
-				twitterProfile: updatedUser.twitterProfile || null,
-				discordId: updatedUser.discordId || null,
-				discordProfile: updatedUser.discordProfile || null,
-				telegramId: updatedUser.telegramId || null,
-				telegramUsername: updatedUser.telegramUsername || null,
+				twitter: updatedUser.twitter || null,
+				discord: updatedUser.discord || null,
+				telegram: updatedUser.telegram || null,
 			};
 
 			progress.push(user?.id, {
@@ -2834,15 +2828,7 @@ app.post("/get-account-stats", async (req, res) => {
 			}
 		}
 
-    
-
-	
-
-	
-	
-
-
-		const versionInfo = await getVersionData(contractId, network)
+		const versionInfo = await getVersionData(contractId, network);
 
 		let accountSettings = await contractGet(
 			internalSigner.publicKey(),

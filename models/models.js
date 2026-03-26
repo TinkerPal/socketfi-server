@@ -51,52 +51,55 @@ const userAccountSchema = new Schema(
 		userId: { type: String, required: true, unique: true, trim: true },
 
 		passkey: Object,
-		linkedAccounts: [{ provider: String, account_id: String, handle: String }],
+		linkedAccounts: {
+			type: [String],
+			enum: ["email", "twitter", "discord", "telegram"],
+			default: [],
+		},
 		address: {
 			TESTNET: { type: String, default: undefined, uppercase: true },
 			PUBLIC: { type: String, default: undefined, uppercase: true },
 		},
 		email: {
-			type: String,
-			lowercase: true,
-			trim: true,
-			sparse: true,
+			address: {
+				type: String,
+				lowercase: true,
+				trim: true,
+				sparse: true,
+			},
+			verified: {
+				type: Boolean,
+				default: false,
+			},
 		},
-		emailVerified: {
-			type: Boolean,
-			default: false,
-		},
-		twitterId: {
-			type: String,
-			unique: true,
-			sparse: true,
-		},
-		twitterProfile: {
+		twitter: {
+			id: {
+				type: String,
+				unique: true,
+				sparse: true,
+			},
 			name: String,
 			screenName: String,
 			profileImageUrl: String,
 		},
-		discordId: {
-			type: String,
-			unique: true,
-			sparse: true,
-		},
-		discordProfile: {
+		discord: {
+			id: {
+				type: String,
+				unique: true,
+				sparse: true,
+			},
 			username: String,
 			discriminator: String,
 			avatar: String,
 			email: String,
 		},
-		telegramId: {
-			type: String,
-			unique: true,
-			sparse: true,
-		},
-		telegramUsername: {
-			type: String,
-		},
-		telegramChatId: {
-			type: String,
+		telegram: {
+			id: {
+				type: String,
+				unique: true,
+				sparse: true,
+			},
+			username: String,
 		},
 	},
 	{ timestamps: true, versionKey: false },
@@ -128,7 +131,7 @@ userAccountSchema.index(
 );
 
 userAccountSchema.statics.getUserByEmail = async function (email) {
-	return this.findOne({ email: String(email).trim().toLowerCase() });
+	return this.findOne({ "email.address": String(email).trim().toLowerCase() });
 };
 
 // Method to generate JWT token

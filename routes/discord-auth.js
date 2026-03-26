@@ -16,10 +16,10 @@ router.get("/discord/callback", (req, res, next) => {
 				: "Discord authentication failed";
 			console.error("[discord-callback] Auth failed:", err?.message);
 			return res.redirect(
-				`${CLIENT_URL}/account-configurations?discord=failed&error=${errorMsg}`,
+				`${CLIENT_URL}/settings/connect?discord=failed&error=${errorMsg}`,
 			);
 		}
-		return res.redirect(`${CLIENT_URL}/account-configurations`);
+		return res.redirect(`${CLIENT_URL}/settings/connect`);
 	})(req, res, next);
 });
 
