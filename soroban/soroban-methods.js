@@ -234,8 +234,6 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
       }
     } catch (e) {
       if (e.message !== "WATCHDOG_TIMEOUT") throw e;
-      // Else fall through to fee-bump
-      console.log("Trigger fee bump!");
     }
 
     // -- 6) Fee-bump fallback (rebid much higher)
@@ -249,8 +247,6 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
       Networks[network]
     );
     feeBump.sign(payerKeypair);
-
-    console.log("fee bump submission");
 
     const fbRes = await server.sendTransaction(feeBump.toXDR());
 
@@ -347,7 +343,6 @@ async function sendWithFailover(signedXdr, network) {
 
   // Try primary first
   try {
-    console.log("1 ran");
     return await primaryServer(network, "json").sendTransaction(signedXdr);
   } catch (err) {
     if (/timeout|ECONNRESET|network|fetch failed/i.test(err.message)) {
@@ -361,7 +356,6 @@ async function sendWithFailover(signedXdr, network) {
 
   // Fallback to secondary
   try {
-    console.log("2 ran");
     return await secondaryServer(network, "json").sendTransaction(signedXdr);
   } catch (err) {
     throw lastError || err;
