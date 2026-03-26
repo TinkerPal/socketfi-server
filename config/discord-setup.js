@@ -88,7 +88,7 @@ passport.use(
 				const { userId } = decoded;
 
 				const existingDiscord = await UserAccount.findOne({
-					discordId: profile.id,
+					"discord.id": profile.id,
 					userId: { $ne: userId },
 				});
 
@@ -97,8 +97,8 @@ passport.use(
 				}
 
 				const discordData = {
-					discordId: profile.id,
-					discordProfile: {
+					discord: {
+						id: profile.id,
 						username: profile.username,
 						discriminator: profile.discriminator,
 						avatar: profile.avatar
@@ -108,7 +108,10 @@ passport.use(
 					},
 				};
 
-				await UserAccount.updateOne({ userId }, { $set: discordData });
+				await UserAccount.updateOne(
+					{ userId },
+					{ $set: discordData, $addToSet: { linkedAccounts: "discord" } },
+				);
 
 				done(null, { userId, ...discordData });
 			} catch (err) {

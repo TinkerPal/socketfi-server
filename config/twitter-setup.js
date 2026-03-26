@@ -33,7 +33,7 @@ passport.use(
 				}
 
 				const existingTwitter = await UserAccount.findOne({
-					twitterId: profile._json.id_str,
+					"twitter.id": profile._json.id_str,
 					userId: { $ne: userId },
 				});
 
@@ -44,15 +44,18 @@ passport.use(
 				}
 
 				const twitterData = {
-					twitterId: profile._json.id_str,
-					twitterProfile: {
+					twitter: {
+						id: profile._json.id_str,
 						name: profile._json.name,
 						screenName: profile._json.screen_name,
 						profileImageUrl: profile._json.profile_image_url_https,
 					},
 				};
 
-				await UserAccount.updateOne({ userId }, { $set: twitterData });
+				await UserAccount.updateOne(
+					{ userId },
+					{ $set: twitterData, $addToSet: { linkedAccounts: "twitter" } },
+				);
 
 				done(null, { userId, ...twitterData });
 			} catch (err) {

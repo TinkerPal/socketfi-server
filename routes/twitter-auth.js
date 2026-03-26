@@ -16,10 +16,10 @@ router.get("/twitter/callback", (req, res, next) => {
 				: "Twitter authentication failed";
 			console.error("[twitter-callback] Auth failed:", err?.message);
 			return res.redirect(
-				`${CLIENT_URL}/account-configurations?twitter=failed&error=${errorMsg}`,
+				`${CLIENT_URL}/settings/connect?twitter=failed&error=${errorMsg}`,
 			);
 		}
-		return res.redirect(`${CLIENT_URL}/account-configurations`);
+		return res.redirect(`${CLIENT_URL}/settings/connect`);
 	})(req, res, next);
 });
 
