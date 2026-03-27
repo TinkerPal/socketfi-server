@@ -256,6 +256,64 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
   });
 }
 
+async function walletTxNonce(
+  pubKey,
+  network,
+  contractId,
+  operation,
+  func,
+  args
+) {
+  try {
+    const invokeArgs = [];
+
+    for (const eachArg of args) {
+      if (eachArg?.type === "Wasm") {
+        const wasmUpload = bufferStorage[pubKey];
+
+        if (!wasmUpload) {
+          return res
+            .status(400)
+            .json({ error: "Wasm file not found in bufferStorage" });
+        }
+
+        invokeArgs.push(nativeToScVal(wasmUpload));
+
+        // Don't delete bufferStorage[pubKey] yet; do it only after successful simulation
+      } else {
+        invokeArgs.push(processArgs(eachArg));
+      }
+    }
+
+    const server = RpcServer(network, "json");
+    const source = await server.getAccount(pubKey);
+    const txBuilder = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: Networks[network],
+    });
+
+    const contract = new Contract(contractId);
+    const txXdr = txBuilder
+      .addOperation(
+        contract.call(
+          operation,
+          nativeToScVal(func, { type: "string" }),
+          nativeToScVal(invokeArgs, { type: "vec" })
+          // nativeToScVal("4200", { type: "u32" })
+        )
+      )
+      .setTimeout(TimeoutInfinite)
+      .build()
+      .toXDR();
+
+    const res = await server.simulateTransaction(txXdr);
+
+    return res;
+  } catch (e) {
+    console.log(e.message);
+  }
+}
+
 async function contractGet(pubKey, network, contractId, operation, args) {
   try {
     const invokeArgs = [];
@@ -413,4 +471,5 @@ module.exports = {
   invokeContract,
   invokeContractScVal,
   BASE_FEE,
+  walletTxNonce,
 };

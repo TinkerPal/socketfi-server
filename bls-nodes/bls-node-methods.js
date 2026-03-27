@@ -41,18 +41,22 @@ async function nodeSignPayload(
   smartWalletId,
   payload
 ) {
-  const res = await axios.post(
-    `${BASE_URL}/bls/sign/payload/${network.toLowerCase()}`,
-    {
-      passkey: passkey,
-      smart_wallet_id: smartWalletId,
-      payload: payload,
-    }
-  );
+  try {
+    const res = await axios.post(
+      `${BASE_URL}/bls/sign/payload/${network.toLowerCase()}`,
+      {
+        passkey: passkey,
+        smart_wallet_id: smartWalletId,
+        payload: payload,
+      }
+    );
 
-  if (res?.data) {
-    return bytesToPoint(Buffer.from(res?.data?.signature, "hex"));
-    // return Buffer.from(res?.data?.signature, "hex");
+    if (res?.data) {
+      return bytesToPoint(Buffer.from(res?.data?.signature, "hex"));
+      // return Buffer.from(res?.data?.signature, "hex");
+    }
+  } catch (e) {
+    console.log("the error", e);
   }
 }
 

@@ -63,6 +63,7 @@ const {
   invokeContractScVal,
   BASE_FEE,
   getVersionData,
+  walletTxNonce,
 } = require("./soroban/soroban-methods");
 const { sseProgress } = require("./tracker/progress-tracker");
 const { progress } = require("./tracker/progress");
@@ -690,13 +691,13 @@ app.post("/verify-email", async (req, res) => {
     return res.status(400).json({ error: "Invalid verification code" });
   }
 
-	await UserAccount.updateOne(
-		{ userId },
-		{
-			email: { id: randomUUID(), username: normalizedEmail, verified: true },
-			$addToSet: { linkedAccounts: "email" },
-		},
-	);
+  await UserAccount.updateOne(
+    { userId },
+    {
+      email: { id: randomUUID(), username: normalizedEmail, verified: true },
+      $addToSet: { linkedAccounts: "email" },
+    }
+  );
   await EmailVerification.deleteOne({ userId, email: normalizedEmail });
 
   return res.json({ message: "Email verified and added successfully" });
@@ -1596,6 +1597,225 @@ app.post("/any-invoke-with-sig", async (req, res) => {
     contractId,
     network,
     callFunction,
+    args = [],
+    sigData,
+    txDetails = null,
+    sId = "",
+  } = req.body;
+
+  try {
+    progress.push(sId, {
+      step: "transaction creation",
+      status: "start",
+      detail: "Transaction Creation Started",
+    });
+
+    if (!network || !contractId || !callFunction || !sigData) {
+      progress.push(sId, {
+        step: "transaction creation",
+        status: "error",
+        detail: "Request body is incomplete",
+      });
+      return res.status(400).json({ error: "request body is incomplete" });
+    }
+
+    const signInfo = JSON.parse(req.cookies.signInfo);
+    if (!signInfo) {
+      progress.push(sId, {
+        step: "transaction creation",
+        status: "error",
+        detail: "Signature info not found",
+      });
+      return res.status(400).json({ error: "Signature info not found" });
+    }
+
+    const authHeader = req.headers["authorization"];
+
+    if (!authHeader) {
+      progress.push(sId, {
+        step: "transaction creation",
+        status: "error",
+        detail: "Authorization header is missing",
+      });
+      return res.status(401).json({ error: "Authorization header is missing" });
+    }
+
+    const accessToken = authHeader.split(" ")[1];
+    progress.push(sId, {
+      step: "transaction creation",
+      status: "progress",
+      detail: "Account Access Verification ",
+    });
+
+    const accessVerification = authenticateToken(accessToken);
+
+    const user = await getUserByUsername(accessVerification.username);
+
+    if (!user) {
+      progress.push(sId, {
+        step: "transaction creation",
+        status: "error",
+        detail: "No user found or user not authorized",
+      });
+      return res
+        .status(400)
+        .json({ error: "No user found or user not authorized" });
+    }
+
+    const areEqual =
+      Buffer.from(
+        new Uint8Array(Buffer.from(user?.passkey?.id, "hex"))
+      ).compare(Buffer.from(base64UrlToUint8Array(sigData.id))) === 0;
+
+    if (!areEqual) {
+      return res.status(400).json({ error: "Invalid signature data received" });
+    }
+
+    const verification = await verifyAuthenticationResponse({
+      response: sigData,
+      expectedChallenge: signInfo.challenge,
+      expectedOrigin: expectedOrigin,
+      expectedRPID: rp_id,
+      authenticator: {
+        credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
+        credentialPublicKey: new Uint8Array(
+          Buffer.from(user?.passkey?.publicKey, "hex")
+        ),
+        counter: user.passkey.counter,
+        transports: user.passkey.transports,
+      },
+    });
+
+    if (verification.verified) {
+      progress.push(sId, {
+        step: "transaction creation",
+        status: "progress",
+        detail: "Transaction Approval Verification ",
+      });
+
+      const dataValid =
+        encodeData({ contractId, network, callFunction }) === signInfo.data;
+
+      if (
+        user.username !== signInfo.username ||
+        user.userId !== signInfo.userId ||
+        !dataValid
+      ) {
+        progress.push(sId, {
+          step: "transaction creation",
+          status: "error",
+          detail: "Something wrong with signed transaction",
+        });
+        return res
+          .status(400)
+          .json({ error: "Something wrong with signed transaction" });
+      }
+
+      progress.push(sId, {
+        step: "transaction creation",
+        status: "progress",
+        detail: "Fetching Transaction Nonce ",
+      });
+
+      const txNonceRes = await walletTxNonce(
+        internalSigner.publicKey(),
+        network,
+        contractId,
+        "get_tx_payload",
+        callFunction?.name,
+        args
+      );
+
+      const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
+      console.log("the nonce is", txNonce);
+
+      progress.push(sId, {
+        step: "transaction submission",
+        status: "progress",
+        detail: "Computing BLS Signatures",
+      });
+
+      const signatureAggregate = await signatureAggregator(
+        network,
+        user.passkey.publicKey,
+        contractId,
+        txNonce
+      );
+
+      console.log("the sig is", signatureAggregate);
+
+      const callArgs = [
+        ...args, // Exclude last element
+        { value: signatureAggregate, type: "scSpecTypeBytes" }, // Replace it
+      ];
+
+      progress.push(sId, {
+        step: "transaction submission",
+        status: "progress",
+        detail: "Submitting Signed Transaction",
+      });
+
+      const txResponse = await invokeContract(
+        network,
+        contractId,
+        callFunction?.name,
+        callArgs
+      );
+
+      if (!txResponse) {
+        progress.push(sId, {
+          step: "transaction creation",
+          status: "error",
+          detail: "Transaction Submission Failed",
+        });
+        return res.status(400).json({
+          error: "Transaction Submission Failed",
+        });
+      } else if (txResponse && txDetails) {
+        const txRecord = {
+          ...txDetails,
+          txId: txResponse?.txHash,
+          network: network,
+        };
+
+        await recordTransaction(txRecord);
+        progress.push(sId, {
+          step: "transaction submission",
+          status: "done",
+          detail: " Transaction Submission Successful",
+          eid: `txHash_${txResponse?.txHash}`,
+        });
+      }
+
+      res.status(200).json({
+        message: "transaction successful",
+        data: txResponse,
+      });
+    }
+  } catch (error) {
+    progress.push(sId, {
+      step: "transaction creation",
+      status: "error",
+      detail: error.response
+        ? error.response.data
+        : error.message || "Transaction Submission Failed",
+    });
+    return res.status(400).json({
+      error: error.response ? error.response.data : error.message,
+    });
+
+    console.error(
+      "Error:",
+      error.response ? error.response.data : error.message
+    );
+  }
+});
+
+app.post("/any-invoke-with-sig-old", async (req, res) => {
+  const {
+    contractId,
+    network,
+    callFunction,
     sigData,
     txDetails = null,
     sId = "",
@@ -1723,6 +1943,7 @@ app.post("/any-invoke-with-sig", async (req, res) => {
       );
 
       const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
+      // console.log("the nonce is", txNonce);
 
       progress.push(sId, {
         step: "transaction submission",
@@ -1737,10 +1958,14 @@ app.post("/any-invoke-with-sig", async (req, res) => {
         txNonce
       );
 
+      console.log("the sig is", signatureAggregate);
+
       const args = [
         ...callFunction?.inputs.slice(0, -1), // Exclude last element
         { value: signatureAggregate, type: "scSpecTypeBytes" }, // Replace it
       ];
+
+      console.log("the args is", args);
 
       progress.push(sId, {
         step: "transaction submission",
