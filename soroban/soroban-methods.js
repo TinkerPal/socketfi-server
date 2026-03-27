@@ -19,7 +19,7 @@ const BASE_FEE = "1000000";
 const { processArgs } = require("./utils");
 
 const { StellarServers } = require("@sorobuild/stellar-sdk");
-const { contracts, VERSION_WASM } = require("./contracts");
+const { contracts } = require("./contracts");
 const ankrKey = process.env.ANKR_KEY;
 const url = `https://rpc.ankr.com/stellar_soroban/${ankrKey}`;
 

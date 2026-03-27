@@ -1,5 +1,5 @@
 const { UserAccount, Transaction, LoyaltyPoints } = require("./models/models");
-const contracts = require("./soroban/contracts");
+const { contracts } = require("./soroban/contracts");
 const {
   invokeCreate,
   internalSigner,
