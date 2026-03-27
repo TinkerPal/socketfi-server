@@ -19,7 +19,7 @@ const BASE_FEE = "1000000";
 const { processArgs } = require("./utils");
 
 const { StellarServers } = require("@sorobuild/stellar-sdk");
-const contracts = require("./contracts");
+const { contracts, VERSION_WASM } = require("./contracts");
 const ankrKey = process.env.ANKR_KEY;
 const url = `https://rpc.ankr.com/stellar_soroban/${ankrKey}`;
 
@@ -453,11 +453,15 @@ async function getVersionData(contractId, network = "PUBLIC") {
     const installedHash = createHash("sha256").update(data).digest("hex");
     const needUpdate = latestVersion !== installedHash;
 
-    const res = { needUpdate, wasm: latestVersion };
+    const res = {
+      needUpdate,
+      installed_wasm: installedHash,
+      wasm: latestVersion,
+    };
 
     return res;
   } catch (e) {
-    console.log(e.message);
+    console.log("the error here", e.message);
   }
 }
 

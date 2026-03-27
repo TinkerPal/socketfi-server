@@ -10,6 +10,8 @@ const contracts = {
   },
 };
 
-//old contract CAG3FINMS6LPWRMY23C6XQJQDO7DEPWSC3NT6JZ6P532DRPOYIAX7YAQ
+const VERSION_WASM = {
+  v_1: "f959008c8e17f7853ab60ec53cc61f1527ddfd3146762a542fe77ad2943fd4ac",
+};
 
-module.exports = contracts;
+module.exports = { contracts, VERSION_WASM };

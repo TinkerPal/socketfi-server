@@ -67,7 +67,7 @@ const {
 } = require("./soroban/soroban-methods");
 const { sseProgress } = require("./tracker/progress-tracker");
 const { progress } = require("./tracker/progress");
-const contracts = require("./soroban/contracts");
+const { contracts, VERSION_WASM } = require("./soroban/contracts");
 const { encodeData, processArgs, toBaseUnits } = require("./soroban/utils");
 const { findSwapPathAqua } = require("./configs/aqua-config");
 const { findSwapPathSoroswap, getQuote } = require("./configs/soroswap-config");
@@ -2610,9 +2610,9 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
 });
 
 app.post("/upgrade-wallet-with-sig", async (req, res) => {
-  const { contractId, network, callFunction, sigData, sId = "" } = req.body;
+  const { contractId, network, sigData, sId = "" } = req.body;
   try {
-    if (!network || !contractId || !callFunction || !sigData) {
+    if (!network || !contractId || !sigData) {
       progress.push(sId, {
         step: "user authentication",
         status: "error",
@@ -2696,7 +2696,8 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
 
     if (verification.verified) {
       const dataValid =
-        encodeData({ contractId, network, callFunction }) === signInfo.data;
+        encodeData({ contractId, network, callFunction: "upgrade" }) ===
+        signInfo.data;
 
       if (
         user.username !== signInfo.username ||
@@ -2713,21 +2714,7 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
           .json({ error: "Something wrong with signed transaction" });
       }
 
-      let versionData = await contractGet(
-        internalSigner.publicKey(),
-        network,
-        contracts[network].MASTER_CONTRACT,
-        "get_all_versions",
-        []
-      );
-
-      const latestVersionObjArr = normalizeVersionRows(
-        versionData?.results[0]?.returnValueJson?.vec
-      );
-
-      const latestVersion = latestVersionObjArr.find(
-        (vr) => vr?.label === "latest"
-      );
+      const versionInfo = await getVersionData(contractId, network);
 
       progress.push(sId, {
         step: "transaction submission",
@@ -2735,23 +2722,40 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
         detail: "Fetching Latest Version",
       });
 
-      const wasm = latestVersion?.wasm;
+      let txNonce;
+      if (versionInfo?.installed_wasm === VERSION_WASM?.v_1) {
+        const txNonceRes = await contractGet(
+          internalSigner.publicKey(),
+          network,
+          contractId,
+          "get_nonce",
+          []
+        );
 
-      const txNonceRes = await contractGet(
-        internalSigner.publicKey(),
-        network,
-        contractId,
-        "get_nonce",
-        []
-      );
+        txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
+      } else {
+        const txNonceRes = await walletTxNonce(
+          internalSigner.publicKey(),
+          network,
+          contractId,
+          "get_tx_payload",
+          "upgrade",
+          [
+            {
+              value: Buffer.from(versionInfo?.wasm, "hex"),
+              type: "scSpecTypeBytes",
+            },
+          ]
+        );
+
+        txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
+      }
 
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
         detail: "Fetching Update Nonce",
       });
-
-      const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
 
       progress.push(sId, {
         step: "transaction submission",
@@ -2767,7 +2771,7 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
       );
 
       const args = [
-        nativeToScVal(Buffer.from(wasm, "hex"), { type: "bytes" }),
+        nativeToScVal(Buffer.from(versionInfo?.wasm, "hex"), { type: "bytes" }),
         nativeToScVal(signatureAggregate, { type: "bytes" }),
       ];
 
@@ -2780,7 +2784,7 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
       const txResponse = await invokeContractScVal(
         network,
         contractId,
-        callFunction,
+        "upgrade",
         args
       );
 
