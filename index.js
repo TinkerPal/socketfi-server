@@ -2751,6 +2751,8 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
         txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
       }
 
+      console.log("the tx nonce", txNonce);
+
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
