@@ -20,6 +20,8 @@ const { processArgs } = require("./utils");
 
 const { StellarServers } = require("@sorobuild/stellar-sdk");
 const { contracts } = require("./contracts");
+// const { formatStroops } = require("../helper-functions");
+
 const ankrKey = process.env.ANKR_KEY;
 const url = `https://rpc.ankr.com/stellar_soroban/${ankrKey}`;
 
@@ -364,6 +366,83 @@ async function contractGet(pubKey, network, contractId, operation, args) {
   }
 }
 
+function formatStroops(value) {
+  // Normalize input
+  let nBig;
+  if (typeof value === "bigint") {
+    nBig = value;
+  } else if (typeof value === "string") {
+    // Ensure it's a valid integer string
+    if (!/^-?\d+$/.test(value)) {
+      throw new Error("Invalid numeric string");
+    }
+    nBig = BigInt(value);
+  } else {
+    throw new Error("Input must be a bigint or numeric string");
+  }
+
+  const base = 10_000_000n;
+  const whole = nBig / base;
+  const frac = (nBig % base).toString().padStart(7, "0");
+
+  return `${whole}.${frac}`;
+}
+async function getWalletBal(contractId, token, network) {
+  try {
+    const server = RpcServer(network, "json");
+    const source = await server.getAccount(internalSigner.publicKey());
+    const txBuilder = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: Networks[network],
+    });
+
+    const contract = new Contract(contractId);
+    const txXdr = txBuilder
+      .addOperation(
+        contract.call("get_balance", nativeToScVal(token, { type: "address" }))
+      )
+      .setTimeout(TimeoutInfinite)
+      .build()
+      .toXDR();
+
+    const res = await server.simulateTransaction(txXdr);
+
+    const balance = (await res?.results?.[0]?.returnValueJson?.i128) || "0";
+
+    console.log("return balance", balance);
+
+    return formatStroops(balance);
+    // return balance;
+  } catch (e) {
+    console.log(e.message);
+  }
+}
+async function getSymbol(token, network) {
+  try {
+    const server = RpcServer(network, "json");
+    const source = await server.getAccount(internalSigner.publicKey());
+    const txBuilder = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: Networks[network],
+    });
+
+    const contract = new Contract(token);
+    const txXdr = txBuilder
+      .addOperation(contract.call("symbol"))
+      .setTimeout(TimeoutInfinite)
+      .build()
+      .toXDR();
+
+    const res = await server.simulateTransaction(txXdr);
+
+    const symbolOut = res?.results?.[0]?.returnValueJson?.string;
+
+    return symbolOut === "native" ? "XLM" : symbolOut;
+  } catch (e) {
+    console.log(e.message);
+  }
+}
+
 async function invokeContractScVal(network, contractId, operation, invokeArgs) {
   const memo = "";
   const server = RpcServer(network, "json");
@@ -476,4 +555,6 @@ module.exports = {
   invokeContractScVal,
   BASE_FEE,
   walletTxNonce,
+  getSymbol,
+  getWalletBal,
 };

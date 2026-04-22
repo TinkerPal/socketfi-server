@@ -47,6 +47,7 @@ const {
   normalizeTokenRows,
   getLoyaltyPoints,
   normalizeVersionRows,
+  convertToSafeJson,
 } = require("./helper-functions");
 const nodes = require("./signer-nodes/signer-nodes");
 const {
@@ -64,6 +65,8 @@ const {
   BASE_FEE,
   getVersionData,
   walletTxNonce,
+  getSymbol,
+  getWalletBal,
 } = require("./soroban/soroban-methods");
 const { sseProgress } = require("./tracker/progress-tracker");
 const { progress } = require("./tracker/progress");
@@ -461,7 +464,7 @@ app.post("/verify-auth", async (req, res) => {
       );
 
       const args = [
-        { value: authInfo.username, type: "scSpecTypeString" },
+        // { value: authInfo.username, type: "scSpecTypeString" },
         { value: passkeyBuffer, type: "scSpecTypeBytes" },
         {
           value: blsBuffers,
@@ -1181,7 +1184,7 @@ app.post("/activate-account", async (req, res) => {
       );
 
       const args = [
-        { value: user.username, type: "scSpecTypeString" },
+        // { value: user.username, type: "scSpecTypeString" },
         { value: passkeyBuffer, type: "scSpecTypeBytes" },
         {
           value: blsBuffers,
@@ -2853,6 +2856,50 @@ app.post("/get-quote", async (req, res) => {
   }
 });
 
+app.post("/get-fee-quote", async (req, res) => {
+  try {
+    const { wallet, asset, amount = "100", network = "TESTNET" } = req.body;
+
+    if (!wallet) {
+      return res.status(400).json({ error: "Incomplete Request Body" });
+    }
+
+    const args = [
+      { value: wallet, type: "scSpecTypeAddress" },
+      { value: asset ? asset : wallet, type: "scSpecTypeAddress" },
+      { value: amount, type: "scSpecTypeI128" },
+    ];
+
+    let feeQuote = await contractGet(
+      internalSigner.publicKey(),
+      network,
+      contracts?.[network].FEE_MANAGER,
+      "quote_transaction_fee",
+      args
+    );
+
+    let payloadToSend;
+
+    if (feeQuote) {
+      const feeJson = convertToSafeJson(
+        feeQuote?.results?.[0]?.returnValueJson?.vec
+      );
+
+      payloadToSend = JSON.stringify(feeJson);
+    }
+
+    res.status(200).json({
+      message: "fee data fetched successfully",
+      feeData: payloadToSend,
+    });
+  } catch (error) {
+    console.error(
+      "Error:",
+      error.response ? error.response.data : error.message
+    );
+  }
+});
+
 app.post("/get-account-stats", async (req, res) => {
   try {
     const authHeader = req.headers["authorization"];
@@ -2887,24 +2934,34 @@ app.post("/get-account-stats", async (req, res) => {
     const contractId = user?.address?.[network];
 
     const list = await TokenList.getTokenList(user.userId, network);
-    let tokensDetails = [];
-    let tokenPrices = {};
 
-    if (list?.length > 0) {
-      let data = await contractGet(
-        internalSigner.publicKey(),
-        network,
+    let tokenDetails = [];
+    for (let token of list) {
+      const tokenBalance = await getWalletBal(
         contractId,
-        "get_token_list",
-        [{ value: list, type: "scSpecTypeAddress" }]
+        token?.contract,
+        network
       );
 
-      const input = data?.results?.[0]?.returnValueJson?.map;
-      tokensDetails = normalizeTokenRows(input);
+      let tokObj;
 
       if (network === "PUBLIC") {
-        tokenPrices = await bestUsdQuote(tokensDetails);
+        const tokenPrices = await bestUsdQuote(tokObj);
+
+        tokObj = {
+          ...token,
+          balance: tokenBalance,
+          price: tokenPrices,
+        };
+      } else if (network === "TESTNET") {
+        tokObj = {
+          ...token,
+          balance: tokenBalance,
+          price: 0,
+        };
       }
+
+      tokenDetails.push(tokObj);
     }
 
     const versionInfo = await getVersionData(contractId, network);
@@ -2925,8 +2982,7 @@ app.post("/get-account-stats", async (req, res) => {
     res.status(200).json({
       message: "transaction stats fetched successfully",
       stats: stats,
-      tokensDetails: tokensDetails,
-      prices: tokenPrices,
+      tokensDetails: tokenDetails,
       accountSettings: settingVals,
       versionInfo,
       points: points,

@@ -553,6 +553,44 @@ function normalizeVersionRows(rows = []) {
   });
 }
 
+function convertToSafeJson(inputArray) {
+  if (!Array.isArray(inputArray) || inputArray.length < 2) {
+    throw new Error("Input must be an array with at least 2 elements");
+  }
+
+  // The first element contains the decision
+  const decisionEntry = inputArray[0];
+  if (!decisionEntry.symbol) {
+    throw new Error("First element must have a 'symbol' property");
+  }
+
+  // The second element contains the map
+  const mapEntry = inputArray[1];
+  if (!mapEntry.map || !Array.isArray(mapEntry.map)) {
+    throw new Error("Second element must have a 'map' array");
+  }
+
+  // Convert the map array into a plain object
+  const data = {};
+  mapEntry.map.forEach(({ key, val }) => {
+    if (!key || !key.symbol) return;
+
+    // Extract value; handle i128 and address as strings
+    if (val.i128) {
+      data[key.symbol] = val.i128;
+    } else if (val.address) {
+      data[key.symbol] = val.address;
+    } else {
+      data[key.symbol] = val; // fallback
+    }
+  });
+
+  return {
+    decision: decisionEntry.symbol,
+    data,
+  };
+}
+
 module.exports = {
   createUser,
   getUserByUsername,
@@ -567,4 +605,6 @@ module.exports = {
   normalizeTokenRows,
   getLoyaltyPoints,
   normalizeVersionRows,
+  formatStroops,
+  convertToSafeJson,
 };
