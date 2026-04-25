@@ -264,27 +264,58 @@ async function walletTxNonce(
   contractId,
   operation,
   func,
-  args
+  nativeArgs = null,
+  scValArgs = null
 ) {
   try {
-    const invokeArgs = [];
+    let invokeArgs = [];
 
-    for (const eachArg of args) {
-      if (eachArg?.type === "Wasm") {
-        const wasmUpload = bufferStorage[pubKey];
+    // if (nativeArgs && scValArgs) {
+    //   return res
+    //     .status(400)
+    //     .json({ error: "Args and scvArgs cannot be both provided" });
+    // } else if (nativeArgs) {
+    //   for (const eachArg of nativeArgs) {
+    //     if (eachArg?.type === "Wasm") {
+    //       const wasmUpload = bufferStorage[pubKey];
 
-        if (!wasmUpload) {
-          return res
-            .status(400)
-            .json({ error: "Wasm file not found in bufferStorage" });
+    //       if (!wasmUpload) {
+    //         return res
+    //           .status(400)
+    //           .json({ error: "Wasm file not found in bufferStorage" });
+    //       }
+
+    //       invokeArgs.push(nativeToScVal(wasmUpload));
+
+    //       // Don't delete bufferStorage[pubKey] yet; do it only after successful simulation
+    //     } else {
+    //       invokeArgs.push(processArgs(eachArg));
+    //     }
+    //   }
+    // } else if (scValArgs) {
+    //   invokeArgs = scValArgs;
+    // }
+
+    if (nativeArgs && scValArgs) {
+      throw new Error("nativeArgs and scValArgs cannot both be provided");
+    }
+
+    if (Array.isArray(nativeArgs)) {
+      for (const eachArg of nativeArgs) {
+        if (eachArg?.type === "Wasm") {
+          const wasmUpload = bufferStorage[pubKey];
+
+          if (!wasmUpload) {
+            throw new Error("Wasm file not found in bufferStorage");
+          }
+
+          invokeArgs.push(nativeToScVal(wasmUpload));
+        } else {
+          invokeArgs.push(processArgs(eachArg));
         }
-
-        invokeArgs.push(nativeToScVal(wasmUpload));
-
-        // Don't delete bufferStorage[pubKey] yet; do it only after successful simulation
-      } else {
-        invokeArgs.push(processArgs(eachArg));
       }
+    } else if (Array.isArray(scValArgs)) {
+      invokeArgs = scValArgs;
     }
 
     const server = RpcServer(network, "json");
