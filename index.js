@@ -304,6 +304,10 @@ app.post("/init-auth", async (req, res) => {
       rpName: "SocketFi",
       userName: username.toLowerCase(),
       userID: base64url.encode(randomUUID()),
+      authenticatorSelection: {
+        userVerification: "required",
+        residentKey: "preferred",
+      },
     });
 
     progress.push(options.user.id, {
@@ -372,6 +376,7 @@ app.post("/verify-auth", async (req, res) => {
             expectedChallenge: authInfo.challenge,
             expectedOrigin: expectedOrigin,
             expectedRPID: rp_id,
+            requireUserVerification: true,
             authenticator: {
               credentialID: new Uint8Array(
                 Buffer.from(user?.passkey?.id, "hex")
@@ -429,6 +434,7 @@ app.post("/verify-auth", async (req, res) => {
       expectedChallenge: authInfo.challenge,
       expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
+      requireUserVerification: true,
     });
 
     progress.push(id, {
@@ -458,6 +464,12 @@ app.post("/verify-auth", async (req, res) => {
           error: `Incomplete BLS Keys initialization, ${blsKeysData.length} of ${nodes.length}`,
         });
       }
+
+      progress.push(id, {
+        step: "key generation",
+        status: "finalizing",
+        detail: "Finalizing Wallet BLS Keys",
+      });
 
       const blsBuffers = blsKeysData.map((blsKeypair) =>
         Buffer.from(blsKeypair.publicKey, "hex")
@@ -1147,6 +1159,7 @@ app.post("/activate-account", async (req, res) => {
       expectedChallenge: activationInfo.challenge,
       expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
+      requireUserVerification: true,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
         credentialPublicKey: new Uint8Array(
@@ -1679,6 +1692,7 @@ app.post("/any-invoke-with-sig", async (req, res) => {
       expectedChallenge: signInfo.challenge,
       expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
+      requireUserVerification: true,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
         credentialPublicKey: new Uint8Array(
@@ -1896,6 +1910,7 @@ app.post("/any-invoke-with-sig-old", async (req, res) => {
       expectedChallenge: signInfo.challenge,
       expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
+      requireUserVerification: true,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
         credentialPublicKey: new Uint8Array(
@@ -2116,6 +2131,7 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
       expectedChallenge: signInfo.challenge,
       expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
+      requireUserVerification: true,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
         credentialPublicKey: new Uint8Array(
@@ -2400,6 +2416,7 @@ app.post("/soroswap-swap-with-sig", async (req, res) => {
       expectedChallenge: signInfo.challenge,
       expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
+      requireUserVerification: true,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
         credentialPublicKey: new Uint8Array(
@@ -2687,6 +2704,7 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
       expectedChallenge: signInfo.challenge,
       expectedOrigin: expectedOrigin,
       expectedRPID: rp_id,
+      requireUserVerification: true,
       authenticator: {
         credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
         credentialPublicKey: new Uint8Array(
