@@ -1976,13 +1976,13 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
         amountWithSlippage.toFixed()
       ).toU128();
 
-      const argsObj = {
-        arg1: nativeToScVal(contractId, { type: "address" }),
-        arg2: swapsChain,
-        arg3: tokenInScVal,
-        arg4: amountU128,
-        arg5: amountWithSlippageU128,
-      };
+      const argsObj = [
+        nativeToScVal(contractId, { type: "address" }),
+        swapsChain,
+        tokenInScVal,
+        amountU128,
+        amountWithSlippageU128,
+      ];
 
       const authObj = {
         contract: tokenInScVal,
