@@ -2849,30 +2849,59 @@ app.get("/analytics/stats", async (req, res) => {
                 onNull: null,
               },
             },
+            amountOutNumber: {
+              $convert: {
+                input: "$amountOut",
+                to: "double",
+                onError: null,
+                onNull: null,
+              },
+            },
+            priceOutNumber: {
+              $convert: {
+                input: "$priceOut",
+                to: "double",
+                onError: null,
+                onNull: null,
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            volumeFromIn: {
+              $cond: [
+                {
+                  $and: [
+                    { $gt: ["$amountInNumber", 0] },
+                    { $gt: ["$priceInNumber", 0] },
+                  ],
+                },
+                { $multiply: ["$amountInNumber", "$priceInNumber"] },
+                null,
+              ],
+            },
+            volumeFromOut: {
+              $cond: [
+                {
+                  $and: [
+                    { $gt: ["$amountOutNumber", 0] },
+                    { $gt: ["$priceOutNumber", 0] },
+                  ],
+                },
+                { $multiply: ["$amountOutNumber", "$priceOutNumber"] },
+                0,
+              ],
+            },
           },
         },
         {
           $group: {
             _id: null,
-
             transactions: { $sum: 1 },
-
             transactionVolume: {
               $sum: {
-                $cond: [
-                  {
-                    $and: [
-                      { $ne: ["$amountInNumber", null] },
-                      { $ne: ["$priceInNumber", null] },
-                      { $gt: ["$amountInNumber", 0] },
-                      { $gt: ["$priceInNumber", 0] },
-                    ],
-                  },
-                  {
-                    $multiply: ["$amountInNumber", "$priceInNumber"],
-                  },
-                  0,
-                ],
+                $ifNull: ["$volumeFromIn", "$volumeFromOut"],
               },
             },
           },
