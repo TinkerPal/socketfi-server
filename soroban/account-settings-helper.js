@@ -22,7 +22,7 @@ function parseI128Like(v, { signed = true } = {}) {
 }
 
 function normalizeAccessSettings(pairs) {
-  const out = { g_account: null, max_allowance: 0n };
+  const out = { g_account: null, default_allowance: 0n };
   for (const item of pairs || []) {
     const key = item?.key?.symbol;
     const val = item?.val;
@@ -61,7 +61,7 @@ function formatScaledAmount(i128, { decimals = 7, fraction = 2 } = {}) {
 function jsonReadyAccessSettings(x, { decimals = 7, fraction = 2 } = {}) {
   return {
     ...x,
-    max_allowance: formatScaledAmount(x.max_allowance, {
+    default_allowance: formatScaledAmount(x.default_allowance, {
       decimals,
       fraction,
     }),
