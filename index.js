@@ -2039,7 +2039,7 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
 
       const args = [
         ...scValArgs,
-        nativeToScVal([nativeToScVal([nativeToScVal(authObj)])]),
+        nativeToScVal([nativeToScVal(authObj)]),
         nativeToScVal(signatureAggregate, { type: "bytes" }),
       ];
 
