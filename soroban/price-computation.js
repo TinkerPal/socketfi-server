@@ -118,17 +118,49 @@ function vwapSellAgainstBids(book, sellAmount) {
 async function bestUsdQuoteOne(token, baseAmount, bookXU) {
   let asset;
 
+  const contract = norm(token?.contract);
+  const code = norm(token?.code || token?.symbol);
+  const issuer = token?.issuer;
+
+  const usdcContract =
+    "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75";
+  const xlmContract =
+    "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA";
+
+  // USDC is already USD-priced
   if (
-    token.contract ===
-      "CAS3J7GYLGXMF6TDJBBYYSE3HQ6BBSMLNUQ34T6TZMYMW2EVH34XOWMA" ||
-    token?.issuer === "native"
+    code === "USDC" ||
+    contract === usdcContract ||
+    issuer === "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
   ) {
-    asset = XLM;
-  } else if (token.issuer !== "native" && token.code && token.issuer) {
-    asset = new Asset(token.code, token.issuer);
+    return {
+      contract: token.contract,
+      price: {
+        direct: 1,
+        viaXLM: 0,
+      },
+      route: "direct",
+      selectedPrice: 1,
+    };
   }
 
-  // Fetch direct ASSET/USDC and via leg ASSET/XLM in parallel (cached)
+  if (contract === xlmContract || code === "XLM" || issuer === "native") {
+    asset = XLM;
+  } else if (issuer !== "native" && token.code && token.issuer) {
+    asset = new Asset(token.code, token.issuer);
+  } else {
+    return {
+      contract: token.contract,
+      price: {
+        direct: 0,
+        viaXLM: 0,
+      },
+      route: "none",
+      selectedPrice: 0,
+      error: "Missing asset code or issuer",
+    };
+  }
+
   const [bookDirect, bookAX] = await Promise.all([
     fetchBookCached(asset, USDC).catch(() => null),
     fetchBookCached(asset, XLM).catch(() => null),
@@ -138,43 +170,56 @@ async function bestUsdQuoteOne(token, baseAmount, bookXU) {
   const viaA = bookAX ? analyze(bookAX, baseAmount) : { ok: false };
 
   let via = { ok: false };
+
   if (viaA.ok && bookXU) {
-    // Compute XLM received for baseAmount of ASSET by walking asks (already asc)
     let want = baseAmount;
     let xlmGot = 0;
     const asks = bookAX.asks || [];
+
     for (let i = 0; i < asks.length && want > 0; i++) {
-      const p = Number(asks[i].price); // XLM per 1 ASSET
-      const q = Number(asks[i].amount); // ASSET units at that level
+      const p = Number(asks[i].price);
+      const q = Number(asks[i].amount);
       const take = want > q ? q : want;
+
       xlmGot += take * p;
       want -= take;
     }
+
     if (want === 0) {
       const usdcFromXlm = vwapSellAgainstBids(bookXU, xlmGot);
-      if (usdcFromXlm != null)
+      if (usdcFromXlm != null) {
         via = { ok: true, vwap: usdcFromXlm / baseAmount };
+      }
     }
   }
 
-  const route =
-    direct.ok && via.ok
-      ? direct.vwap <= via.vwap
-        ? "direct"
-        : "xlm-bridge"
-      : direct.ok
-      ? "direct"
-      : via.ok
-      ? "xlm-bridge"
-      : "none";
+  let route = "none";
+  let selectedPrice = 0;
+
+  if (direct.ok && via.ok) {
+    if (direct.vwap <= via.vwap) {
+      route = "direct";
+      selectedPrice = direct.vwap;
+    } else {
+      route = "viaXLM";
+      selectedPrice = via.vwap;
+    }
+  } else if (direct.ok) {
+    route = "direct";
+    selectedPrice = direct.vwap;
+  } else if (via.ok) {
+    route = "viaXLM";
+    selectedPrice = via.vwap;
+  }
 
   return {
-    contract: token.contract || asset.getCode(), // use contract as key when present
+    contract: token.contract || asset.getCode(),
     price: {
       direct: direct.ok ? direct.vwap : 0,
       viaXLM: via.ok ? via.vwap : 0,
     },
     route,
+    selectedPrice,
   };
 }
 
