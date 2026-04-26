@@ -2778,7 +2778,7 @@ app.post("/get-account-stats", async (req, res) => {
       internalSigner.publicKey(),
       network,
       contractId,
-      "get_access_settings",
+      "get_account_parameters",
       []
     );
 
