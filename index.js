@@ -30,6 +30,8 @@ const {
   EmailVerification,
   TelegramLinking,
   UserAccount,
+  Analytics,
+  Transaction,
 } = require("./models/models");
 const { sendOtpEmail } = require("./services/email-service");
 const { sendOtpToTelegram } = require("./services/telegram-service");
@@ -100,6 +102,7 @@ mongoose
 
 const allowedOrigins = [
   "https://socket.fi",
+  "https://www.socket.fi",
   "https://app.socket.fi",
   "http://localhost:5173",
   "http://localhost:5174",
@@ -1745,7 +1748,6 @@ app.post("/any-invoke-with-sig", async (req, res) => {
 
       const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
 
-
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
@@ -1758,8 +1760,6 @@ app.post("/any-invoke-with-sig", async (req, res) => {
         contractId,
         txNonce
       );
-
-
 
       const callArgs = [
         ...args, // Exclude last element
@@ -2559,8 +2559,6 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
         txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
       }
 
-      
-
       progress.push(sId, {
         step: "transaction submission",
         status: "progress",
@@ -2797,6 +2795,109 @@ app.post("/get-account-stats", async (req, res) => {
       "Error:",
       error.response ? error.response.data : error.message
     );
+  }
+});
+
+app.post("/analytics/visit", async (req, res) => {
+  try {
+    const shouldTrackVisit = req.body?.trackVisit === true;
+
+    if (shouldTrackVisit) {
+      await Analytics.updateOne(
+        {},
+        { $inc: { siteVisits: 1 } },
+        { upsert: true }
+      );
+    }
+
+    return res.json({
+      success: true,
+    });
+  } catch (error) {
+    console.error("VISIT ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update visit",
+    });
+  }
+});
+
+app.get("/analytics/stats", async (req, res) => {
+  try {
+    const [analytics, userCount, transactionStats] = await Promise.all([
+      Analytics.findOne().lean(),
+
+      UserAccount.countDocuments({}),
+
+      Transaction.aggregate([
+        {
+          $addFields: {
+            amountInNumber: {
+              $convert: {
+                input: "$amountIn",
+                to: "double",
+                onError: null,
+                onNull: null,
+              },
+            },
+            priceInNumber: {
+              $convert: {
+                input: "$priceIn",
+                to: "double",
+                onError: null,
+                onNull: null,
+              },
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+
+            transactions: { $sum: 1 },
+
+            transactionVolume: {
+              $sum: {
+                $cond: [
+                  {
+                    $and: [
+                      { $ne: ["$amountInNumber", null] },
+                      { $ne: ["$priceInNumber", null] },
+                      { $gt: ["$amountInNumber", 0] },
+                      { $gt: ["$priceInNumber", 0] },
+                    ],
+                  },
+                  {
+                    $multiply: ["$amountInNumber", "$priceInNumber"],
+                  },
+                  0,
+                ],
+              },
+            },
+          },
+        },
+      ]),
+    ]);
+
+    const tx = transactionStats?.[0] || {};
+
+    return res.json({
+      success: true,
+      data: {
+        visits: analytics?.siteVisits || 0,
+        users: userCount || 0,
+        transactions: tx.transactions || 0,
+        transactionVolume: Number(tx.transactionVolume || 0),
+      },
+    });
+  } catch (error) {
+    console.error("STATS ERROR:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch stats",
+    });
   }
 });
 

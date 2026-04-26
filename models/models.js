@@ -406,6 +406,15 @@ const TelegramLinking = mongoose.model(
   telegramLinkingSchema
 );
 
+const analyticsSchema = new Schema(
+  {
+    siteVisits: { type: Number, default: 0 },
+  },
+  { timestamps: true, versionKey: false }
+);
+
+const Analytics = mongoose.model("analytics", analyticsSchema);
+
 module.exports = {
   MONGODB_URI,
   UserAccount,
@@ -416,4 +425,5 @@ module.exports = {
   EmailVerification,
   TelegramLinking,
   authenticateToken,
+  Analytics,
 };
