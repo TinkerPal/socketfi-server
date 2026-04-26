@@ -285,11 +285,12 @@ async function bestUsdQuoteSingle(token, baseAmount = 100) {
   }
 
   try {
-    const result = await bestUsdQuoteOne(t, baseAmount, bXU);
+    const price = await bestUsdQuoteOne(t, baseAmount, bXU);
 
-    return result;
+    return { price, name: t?.name };
   } catch (e) {
     return {
+      name: t?.name,
       contract: contract,
       price: { direct: 0, viaXLM: 0 },
       route: "none",
