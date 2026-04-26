@@ -2753,6 +2753,8 @@ app.post("/get-account-stats", async (req, res) => {
       if (network === "PUBLIC") {
         const tokenPrices = await bestUsdQuote(tokObj);
 
+        console.log("token price from qoute", tokenPrices);
+
         tokObj = {
           ...token,
           balance: tokenBalance,

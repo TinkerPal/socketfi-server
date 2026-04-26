@@ -1,11 +1,13 @@
 // best-usdc-quotes.js
 require("dotenv").config({ quiet: true });
 const { Horizon, Asset } = require("@stellar/stellar-sdk");
-const { curatedList, curratedList } = require("./curatedAssets");
+const { curratedList } = require("./curatedAssets");
 
 const ankrKey = process.env.ANKR_KEY;
 
-const PRIMARY = new Horizon.Server("https://horizon.stellar.org");
+const PRIMARY = new Horizon.Server(
+  `https://rpc.ankr.com/premium-http/stellar_horizon/${ankrKey}`
+);
 const BACKUP = new Horizon.Server(
   `https://rpc.ankr.com/premium-http/stellar_horizon/${ankrKey}`
 ); // or your RPC
