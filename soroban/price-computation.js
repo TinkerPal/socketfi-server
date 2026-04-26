@@ -5,9 +5,7 @@ const { curratedList } = require("./curatedAssets");
 
 const ankrKey = process.env.ANKR_KEY;
 
-const PRIMARY = new Horizon.Server(
-  `https://rpc.ankr.com/premium-http/stellar_horizon/${ankrKey}`
-);
+const PRIMARY = new Horizon.Server("https://horizon.stellar.org");
 const BACKUP = new Horizon.Server(
   `https://rpc.ankr.com/premium-http/stellar_horizon/${ankrKey}`
 ); // or your RPC
@@ -186,6 +184,8 @@ async function bestUsdQuoteOne(token, baseAmount, bookXU) {
  */
 async function bestUsdQuote(walletTokens, baseAmount = 100) {
   // Normalize & de-duplicate contract IDs requested
+
+  console.log("the wallet tokens are", walletTokens);
   const tokenAddresses = Array.from(
     new Set((walletTokens || []).map((t) => norm(t.contract)).filter(Boolean))
   );
