@@ -440,8 +440,6 @@ async function getWalletBal(contractId, token, network) {
 
     const balance = (await res?.results?.[0]?.returnValueJson?.i128) || "0";
 
-    // console.log("return balance", balance);
-
     return formatStroops(balance);
     // return balance;
   } catch (e) {

@@ -1744,7 +1744,7 @@ app.post("/any-invoke-with-sig", async (req, res) => {
       );
 
       const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
-      console.log("the nonce is", txNonce);
+
 
       progress.push(sId, {
         step: "transaction submission",
@@ -1759,7 +1759,7 @@ app.post("/any-invoke-with-sig", async (req, res) => {
         txNonce
       );
 
-      console.log("the sig is", signatureAggregate);
+
 
       const callArgs = [
         ...args, // Exclude last element
@@ -2559,7 +2559,7 @@ app.post("/upgrade-wallet-with-sig", async (req, res) => {
         txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
       }
 
-      console.log("the tx nonce", txNonce);
+      
 
       progress.push(sId, {
         step: "transaction submission",
@@ -2752,9 +2752,6 @@ app.post("/get-account-stats", async (req, res) => {
 
       if (network === "PUBLIC") {
         const data = await bestUsdQuoteSingle(token);
-
-        console.log("the token is", token);
-        console.log("token price from qoute", data);
 
         tokObj = {
           ...token,
