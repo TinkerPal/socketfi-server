@@ -2751,7 +2751,7 @@ app.post("/get-account-stats", async (req, res) => {
       let tokObj;
 
       if (network === "PUBLIC") {
-        const tokenPrices = await bestUsdQuote(tokObj);
+        const tokenPrices = await bestUsdQuote(token);
 
         console.log("token price from qoute", tokenPrices);
 
