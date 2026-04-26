@@ -2010,6 +2010,7 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
         nativeToScVal(contracts.PUBLIC.AQUA, { type: "address" }),
         nativeToScVal("swap_chained", { type: "symbol" }),
         nativeToScVal(argsObj),
+        nativeToScVal([nativeToScVal(authObj)]),
       ];
 
       const txNonceRes = await walletTxNonce(
@@ -2039,7 +2040,6 @@ app.post("/aqua-swap-with-sig", async (req, res) => {
 
       const args = [
         ...scValArgs,
-        nativeToScVal([nativeToScVal(authObj)]),
         nativeToScVal(signatureAggregate, { type: "bytes" }),
       ];
 
