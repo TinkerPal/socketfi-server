@@ -74,7 +74,10 @@ const { contracts, VERSION_WASM } = require("./soroban/contracts");
 const { encodeData, processArgs, toBaseUnits } = require("./soroban/utils");
 const { findSwapPathAqua } = require("./configs/aqua-config");
 const { findSwapPathSoroswap, getQuote } = require("./configs/soroswap-config");
-const { bestUsdQuote } = require("./soroban/price-computation");
+const {
+  bestUsdQuote,
+  bestUsdQuoteSingle,
+} = require("./soroban/price-computation");
 const { isReservedUsername } = require("./models/reserved_usernames");
 const {
   normalizeAccessSettings,
@@ -2751,7 +2754,7 @@ app.post("/get-account-stats", async (req, res) => {
       let tokObj;
 
       if (network === "PUBLIC") {
-        const tokenPrices = await bestUsdQuote(token);
+        const tokenPrices = await bestUsdQuoteSingle(token);
 
         console.log("token price from qoute", tokenPrices);
 

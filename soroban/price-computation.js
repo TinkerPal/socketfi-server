@@ -220,4 +220,37 @@ async function bestUsdQuote(walletTokens, baseAmount = 100) {
   return out;
 }
 
-module.exports = { bestUsdQuote, bestUsdQuoteOne };
+async function bestUsdQuoteSingle(token, baseAmount = 100) {
+  if (!token || !token.contract) {
+    throw new Error("Invalid token object");
+  }
+
+  const contract = norm(token.contract);
+
+  // Try curated first, fallback to passed token
+  const t = curratedList.find((c) => norm(c.contract) === contract) || token;
+
+  // Refresh XLM/USDC cache
+  let bXU = xuCache.book;
+  const now = Date.now();
+
+  if (!bXU || now - xuCache.at > XU_TTL_MS) {
+    bXU = await fetchBookCached(XLM, USDC).catch(() => null);
+    if (bXU) xuCache = { at: now, book: bXU };
+  }
+
+  try {
+    const result = await bestUsdQuoteOne(t, baseAmount, bXU);
+
+    return result;
+  } catch (e) {
+    return {
+      contract: contract,
+      price: { direct: 0, viaXLM: 0 },
+      route: "none",
+      error: String(e?.message || e),
+    };
+  }
+}
+
+module.exports = { bestUsdQuote, bestUsdQuoteOne, bestUsdQuoteSingle };
