@@ -35,8 +35,8 @@ function normalizeAccessSettings(pairs) {
           : typeof val === "string" && val.startsWith("G")
           ? val
           : null;
-    } else if (key === "max_allowance") {
-      out.max_allowance = parseI128Like(val?.i128 ?? val, { signed: true });
+    } else if (key === "default_allowance") {
+      out.default_allowance = parseI128Like(val?.i128 ?? val, { signed: true });
     }
   }
   return jsonReadyAccessSettings(out);
