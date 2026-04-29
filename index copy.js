@@ -252,6 +252,8 @@ app.post("/init-passkey-login", async (req, res) => {
   try {
     const { network = "TESTNET" } = req.body;
 
+    console.log("the request body", req.body);
+
     if (!network) {
       return res.status(400).json({ error: "network is required" });
     }
@@ -448,15 +450,23 @@ app.post("/verify-auth", async (req, res) => {
   try {
     const authInfo = JSON.parse(req?.cookies?.authInfo);
 
+    console.log("the auth info is", authInfo);
+    console.log("the auth data is", authData);
+
     if (!authInfo) {
       return res.status(400).json({ error: "Auth info not found" });
     }
 
-    const credentialIdHex = Buffer.from(authData.id, "base64url").toString(
-      "hex"
-    );
+    // if (isReservedUsername(authInfo.username)) {
+    //   return res.status(409).json({
+    //     ok: false,
+    //     code: "USERNAME_UNAVAILABLE",
+    //     error:
+    //       "That username isn’t available. Please choose a different username.",
+    //   });
+    // }
 
-    const user = await UserAccount.getUserByPasskeyId(credentialIdHex);
+    const user = await getUserByUsername(authInfo.username);
 
     if (user) {
       const areEqual =

@@ -141,6 +141,12 @@ userAccountSchema.statics.getUserByEmail = async function (email) {
   return this.findOne({ "email.username": String(email).trim().toLowerCase() });
 };
 
+userAccountSchema.statics.getUserByPasskeyId = async function (passkeyId) {
+  return this.findOne({
+    "passkey.id": String(passkeyId).trim(),
+  });
+};
+
 // Method to generate JWT token
 userAccountSchema.methods.generateAuthToken = function () {
   const token = jwt.sign(
