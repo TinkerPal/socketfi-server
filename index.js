@@ -446,199 +446,65 @@ app.post("/verify-auth", async (req, res) => {
   const { authData, id, network = "" } = req.body;
 
   try {
-    const authInfo = JSON.parse(req?.cookies?.authInfo);
+    const authInfo = JSON.parse(req?.cookies?.authInfo || "{}");
 
-    if (!authInfo) {
+    if (!authInfo?.challenge) {
       return res.status(400).json({ error: "Auth info not found" });
     }
 
-    const credentialIdHex = Buffer.from(authData.id, "base64url").toString(
-      "hex"
+    const clientData = JSON.parse(
+      Buffer.from(authData.response.clientDataJSON, "base64url").toString(
+        "utf8"
+      )
     );
 
-    const user = await UserAccount.getUserByPasskeyId(credentialIdHex);
+    const responseType = clientData.type;
 
-    if (user) {
-      const areEqual =
-        Buffer.from(
-          new Uint8Array(Buffer.from(user?.passkey?.id, "hex"))
-        ).compare(Buffer.from(base64UrlToUint8Array(authData.id))) === 0;
+    if (responseType === "webauthn.get") {
+      const credentialIdHex = Buffer.from(authData.id, "base64url").toString(
+        "hex"
+      );
+
+      const user = await UserAccount.getUserByPasskeyId(credentialIdHex);
+
+      if (!user) {
+        return res.status(404).json({
+          verified: false,
+          error: "No account found for this passkey",
+        });
+      }
+
       progress.push(id, {
         step: "login verification",
         status: "start",
         detail: "Verifying Login Credentials",
       });
 
-      if (areEqual) {
-        let verification;
-
-        try {
-          verification = await verifyAuthenticationResponse({
-            response: authData,
-            expectedChallenge: authInfo.challenge,
-            expectedOrigin: expectedOrigin,
-            expectedRPID: rp_id,
-            requireUserVerification: true,
-            authenticator: {
-              credentialID: new Uint8Array(
-                Buffer.from(user?.passkey?.id, "hex")
-              ),
-              credentialPublicKey: new Uint8Array(
-                Buffer.from(user?.passkey?.publicKey, "hex")
-              ),
-              counter: user.passkey.counter,
-              transports: user.passkey.transports,
-            },
-          });
-        } catch (e) {
-          console.log("the verification error", e);
-        }
-
-        if (verification.verified) {
-          const accessToken = await user.generateAuthToken();
-
-          progress.push(id, {
-            step: "retriving data",
-            status: "start",
-            detail: "Fetching User's Information",
-          });
-
-          const clientUser = {
-            username: user.username,
-            linkedAccounts: user.linkedAccounts,
-            userId: user.userId,
-            passkey: user.passkey.publicKey,
-            address: user.address,
-            email: user.email || null,
-            twitter: user.twitter || null,
-            discord: user.discord || null,
-            telegram: user.telegram || null,
-          };
-
-          progress.push(id, {
-            step: "account login",
-            status: "done",
-            detail: "Login verification successful",
-          });
-
-          res.clearCookie("authInfo");
-          return res.json({
-            verified: verification.verified,
-            accessToken: accessToken,
-            userProfile: clientUser,
-          });
-        }
-      }
-    }
-
-    const verification = await verifyRegistrationResponse({
-      response: authData,
-      expectedChallenge: authInfo.challenge,
-      expectedOrigin: expectedOrigin,
-      expectedRPID: rp_id,
-      requireUserVerification: true,
-    });
-
-    progress.push(id, {
-      step: "new account verification",
-      status: "start",
-      detail: "Verifying Account Creation Credentials",
-    });
-
-    if (verification.verified) {
-      const blsKeysData = [];
-      const resultingPk = verification.registrationInfo.credentialPublicKey;
-
-      const passkeyBuffer = Buffer.from(resultingPk, "hex");
-      progress.push(id, {
-        step: "key generation",
-        status: "start",
-        detail: "Generating Wallet BLS Keys",
-      });
-
-      for (let i = 0; i < nodes.length; i++) {
-        const blsKey = await nodeInitGenKey(nodes[i].url, network);
-        blsKeysData.push(blsKey);
-      }
-
-      if (nodes.length !== blsKeysData.length) {
-        return res.status(400).json({
-          error: `Incomplete BLS Keys initialization, ${blsKeysData.length} of ${nodes.length}`,
-        });
-      }
-
-      progress.push(id, {
-        step: "key generation",
-        status: "finalizing",
-        detail: "Finalizing Wallet BLS Keys",
-      });
-
-      const blsBuffers = blsKeysData.map((blsKeypair) =>
-        Buffer.from(blsKeypair.publicKey, "hex")
-      );
-
-      const args = [
-        // { value: authInfo.username, type: "scSpecTypeString" },
-        { value: passkeyBuffer, type: "scSpecTypeBytes" },
-        {
-          value: blsBuffers,
-          type: "scSpecTypeBytes",
-        },
-      ];
-
-      progress.push(id, {
-        step: "contract deployment",
-        status: "start",
-        detail: "Deploying Account Contract",
-      });
-
-      const smartWalletAddress = await createContract(network, args);
-
-      if (!smartWalletAddress) {
-        return res.status(400).json({
-          error: `An Error occured while creating smart wallet contract, try again later!`,
-        });
-      }
-
-      progress.push(id, {
-        step: "Account Profile",
-        status: "start",
-        detail: "Creating User Profile",
-      });
-
-      await createUser(
-        authInfo.username,
-        Buffer.from(verification.registrationInfo.credentialID).toString("hex"),
-        {
-          id: Buffer.from(verification.registrationInfo.credentialID).toString(
-            "hex"
+      const verification = await verifyAuthenticationResponse({
+        response: authData,
+        expectedChallenge: authInfo.challenge,
+        expectedOrigin,
+        expectedRPID: rp_id,
+        requireUserVerification: true,
+        authenticator: {
+          credentialID: new Uint8Array(Buffer.from(user.passkey.id, "hex")),
+          credentialPublicKey: new Uint8Array(
+            Buffer.from(user.passkey.publicKey, "hex")
           ),
-          publicKey: Buffer.from(
-            verification.registrationInfo.credentialPublicKey
-          ).toString("hex"),
-          counter: verification.registrationInfo.counter,
-          deviceType: verification.registrationInfo.credentialDeviceType,
-          backedUp: verification.registrationInfo.credentialBackedUp,
-          transports: req.body.transports,
+          counter: user.passkey.counter,
+          transports: user.passkey.transports,
         },
+      });
 
-        smartWalletAddress,
-        network
-      );
-
-      const user = await getUserByUsername(authInfo.username);
-
-      for (let i = 0; i < blsKeysData.length; i++) {
-        if (user) {
-          await nodeCreateSuccess(
-            blsKeysData[i].successCallback,
-            user?.passkey?.publicKey,
-            user?.address[network]
-          );
-        } else {
-          await nodeCreateFailure(blsKeysData[i].failureCallback);
-        }
+      if (!verification.verified) {
+        return res.status(400).json({
+          verified: false,
+          error: "Login verification failed",
+        });
       }
+
+      user.passkey.counter = verification.authenticationInfo.newCounter;
+      await user.save();
 
       const accessToken = await user.generateAuthToken();
 
@@ -646,6 +512,7 @@ app.post("/verify-auth", async (req, res) => {
         username: user.username,
         linkedAccounts: user.linkedAccounts,
         userId: user.userId,
+        passkey: user.passkey.publicKey,
         address: user.address,
         email: user.email || null,
         twitter: user.twitter || null,
@@ -654,31 +521,414 @@ app.post("/verify-auth", async (req, res) => {
       };
 
       progress.push(id, {
-        step: "Account Creation",
+        step: "account login",
         status: "done",
-        detail: "Account Creation Successful",
+        detail: "Login verification successful",
       });
+
       res.clearCookie("authInfo");
 
       return res.json({
-        verified: verification.verified,
-        accessToken: accessToken,
+        verified: true,
+        accessToken,
         userProfile: clientUser,
       });
     }
+
+    if (responseType !== "webauthn.create") {
+      return res.status(400).json({
+        verified: false,
+        error: "Unsupported WebAuthn response type",
+      });
+    }
+
+    progress.push(id, {
+      step: "new account verification",
+      status: "start",
+      detail: "Verifying Account Creation Credentials",
+    });
+
+    const verification = await verifyRegistrationResponse({
+      response: authData,
+      expectedChallenge: authInfo.challenge,
+      expectedOrigin,
+      expectedRPID: rp_id,
+      requireUserVerification: true,
+    });
+
+    if (!verification.verified) {
+      return res.status(400).json({
+        verified: false,
+        error: "Registration verification failed",
+      });
+    }
+
+    const blsKeysData = [];
+    const resultingPk = verification.registrationInfo.credentialPublicKey;
+    const passkeyBuffer = Buffer.from(resultingPk);
+
+    progress.push(id, {
+      step: "key generation",
+      status: "start",
+      detail: "Generating Wallet BLS Keys",
+    });
+
+    for (let i = 0; i < nodes.length; i++) {
+      const blsKey = await nodeInitGenKey(nodes[i].url, network);
+      blsKeysData.push(blsKey);
+    }
+
+    if (nodes.length !== blsKeysData.length) {
+      return res.status(400).json({
+        error: `Incomplete BLS Keys initialization, ${blsKeysData.length} of ${nodes.length}`,
+      });
+    }
+
+    const blsBuffers = blsKeysData.map((blsKeypair) =>
+      Buffer.from(blsKeypair.publicKey, "hex")
+    );
+
+    const args = [
+      { value: passkeyBuffer, type: "scSpecTypeBytes" },
+      { value: blsBuffers, type: "scSpecTypeBytes" },
+    ];
+
+    progress.push(id, {
+      step: "contract deployment",
+      status: "start",
+      detail: "Deploying Account Contract",
+    });
+
+    const smartWalletAddress = await createContract(network, args);
+
+    if (!smartWalletAddress) {
+      return res.status(400).json({
+        error:
+          "An error occurred while creating smart wallet contract, try again later.",
+      });
+    }
+
+    const credentialIdHex = Buffer.from(
+      verification.registrationInfo.credentialID
+    ).toString("hex");
+
+    const username = authInfo.username || authInfo.publicId;
+
+    await createUser(
+      username,
+      authInfo.userId,
+      {
+        id: credentialIdHex,
+        publicKey: Buffer.from(
+          verification.registrationInfo.credentialPublicKey
+        ).toString("hex"),
+        counter: verification.registrationInfo.counter,
+        deviceType: verification.registrationInfo.credentialDeviceType,
+        backedUp: verification.registrationInfo.credentialBackedUp,
+        transports:
+          authData?.response?.transports || authData?.transports || [],
+      },
+      smartWalletAddress,
+      network
+    );
+
+    const user = await getUserByUsername(username);
+
+    for (let i = 0; i < blsKeysData.length; i++) {
+      try {
+        if (user) {
+          await nodeCreateSuccess(
+            blsKeysData[i].successCallback,
+            user.passkey.publicKey,
+            user.address[network]
+          );
+        } else {
+          await nodeCreateFailure(blsKeysData[i].failureCallback);
+        }
+      } catch (nodeError) {
+        console.error("BLS NODE CALLBACK ERROR:", nodeError.message);
+      }
+    }
+
+    const accessToken = await user.generateAuthToken();
+
+    const clientUser = {
+      username: user.username,
+      linkedAccounts: user.linkedAccounts,
+      userId: user.userId,
+      address: user.address,
+      email: user.email || null,
+      twitter: user.twitter || null,
+      discord: user.discord || null,
+      telegram: user.telegram || null,
+    };
+
+    progress.push(id, {
+      step: "Account Creation",
+      status: "done",
+      detail: "Account Creation Successful",
+    });
+
+    res.clearCookie("authInfo");
+
+    return res.json({
+      verified: true,
+      accessToken,
+      userProfile: clientUser,
+    });
   } catch (e) {
     console.error("FULL VERIFY ERROR:", e);
+
     progress.push(id, {
       step: "Verification Error",
       status: "error",
       detail: "Verifying Login Failed",
     });
 
-    return res
-      .status(400)
-      .json({ verified: false, error: "Verification failed" });
+    return res.status(400).json({
+      verified: false,
+      error: "Verification failed",
+    });
   }
 });
+
+// app.post("/verify-auth", async (req, res) => {
+//   const { authData, id, network = "" } = req.body;
+
+//   try {
+//     const authInfo = JSON.parse(req?.cookies?.authInfo);
+
+//     if (!authInfo) {
+//       return res.status(400).json({ error: "Auth info not found" });
+//     }
+
+//     const credentialIdHex = Buffer.from(authData.id, "base64url").toString(
+//       "hex"
+//     );
+
+//     const user = await UserAccount.getUserByPasskeyId(credentialIdHex);
+
+//     if (user) {
+//       const areEqual =
+//         Buffer.from(
+//           new Uint8Array(Buffer.from(user?.passkey?.id, "hex"))
+//         ).compare(Buffer.from(base64UrlToUint8Array(authData.id))) === 0;
+//       progress.push(id, {
+//         step: "login verification",
+//         status: "start",
+//         detail: "Verifying Login Credentials",
+//       });
+
+//       if (areEqual) {
+//         let verification;
+
+//         try {
+//           verification = await verifyAuthenticationResponse({
+//             response: authData,
+//             expectedChallenge: authInfo.challenge,
+//             expectedOrigin: expectedOrigin,
+//             expectedRPID: rp_id,
+//             requireUserVerification: true,
+//             authenticator: {
+//               credentialID: new Uint8Array(
+//                 Buffer.from(user?.passkey?.id, "hex")
+//               ),
+//               credentialPublicKey: new Uint8Array(
+//                 Buffer.from(user?.passkey?.publicKey, "hex")
+//               ),
+//               counter: user.passkey.counter,
+//               transports: user.passkey.transports,
+//             },
+//           });
+//         } catch (e) {
+//           console.log("the verification error", e);
+//         }
+
+//         if (verification.verified) {
+//           const accessToken = await user.generateAuthToken();
+
+//           progress.push(id, {
+//             step: "retriving data",
+//             status: "start",
+//             detail: "Fetching User's Information",
+//           });
+
+//           const clientUser = {
+//             username: user.username,
+//             linkedAccounts: user.linkedAccounts,
+//             userId: user.userId,
+//             passkey: user.passkey.publicKey,
+//             address: user.address,
+//             email: user.email || null,
+//             twitter: user.twitter || null,
+//             discord: user.discord || null,
+//             telegram: user.telegram || null,
+//           };
+
+//           progress.push(id, {
+//             step: "account login",
+//             status: "done",
+//             detail: "Login verification successful",
+//           });
+
+//           res.clearCookie("authInfo");
+//           return res.json({
+//             verified: verification.verified,
+//             accessToken: accessToken,
+//             userProfile: clientUser,
+//           });
+//         }
+//       }
+//     }
+
+//     const verification = await verifyRegistrationResponse({
+//       response: authData,
+//       expectedChallenge: authInfo.challenge,
+//       expectedOrigin: expectedOrigin,
+//       expectedRPID: rp_id,
+//       requireUserVerification: true,
+//     });
+
+//     progress.push(id, {
+//       step: "new account verification",
+//       status: "start",
+//       detail: "Verifying Account Creation Credentials",
+//     });
+
+//     if (verification.verified) {
+//       const blsKeysData = [];
+//       const resultingPk = verification.registrationInfo.credentialPublicKey;
+
+//       const passkeyBuffer = Buffer.from(resultingPk, "hex");
+//       progress.push(id, {
+//         step: "key generation",
+//         status: "start",
+//         detail: "Generating Wallet BLS Keys",
+//       });
+
+//       for (let i = 0; i < nodes.length; i++) {
+//         const blsKey = await nodeInitGenKey(nodes[i].url, network);
+//         blsKeysData.push(blsKey);
+//       }
+
+//       if (nodes.length !== blsKeysData.length) {
+//         return res.status(400).json({
+//           error: `Incomplete BLS Keys initialization, ${blsKeysData.length} of ${nodes.length}`,
+//         });
+//       }
+
+//       progress.push(id, {
+//         step: "key generation",
+//         status: "finalizing",
+//         detail: "Finalizing Wallet BLS Keys",
+//       });
+
+//       const blsBuffers = blsKeysData.map((blsKeypair) =>
+//         Buffer.from(blsKeypair.publicKey, "hex")
+//       );
+
+//       const args = [
+//         // { value: authInfo.username, type: "scSpecTypeString" },
+//         { value: passkeyBuffer, type: "scSpecTypeBytes" },
+//         {
+//           value: blsBuffers,
+//           type: "scSpecTypeBytes",
+//         },
+//       ];
+
+//       progress.push(id, {
+//         step: "contract deployment",
+//         status: "start",
+//         detail: "Deploying Account Contract",
+//       });
+
+//       const smartWalletAddress = await createContract(network, args);
+
+//       if (!smartWalletAddress) {
+//         return res.status(400).json({
+//           error: `An Error occured while creating smart wallet contract, try again later!`,
+//         });
+//       }
+
+//       progress.push(id, {
+//         step: "Account Profile",
+//         status: "start",
+//         detail: "Creating User Profile",
+//       });
+
+//       await createUser(
+//         authInfo.username,
+//         Buffer.from(verification.registrationInfo.credentialID).toString("hex"),
+//         {
+//           id: Buffer.from(verification.registrationInfo.credentialID).toString(
+//             "hex"
+//           ),
+//           publicKey: Buffer.from(
+//             verification.registrationInfo.credentialPublicKey
+//           ).toString("hex"),
+//           counter: verification.registrationInfo.counter,
+//           deviceType: verification.registrationInfo.credentialDeviceType,
+//           backedUp: verification.registrationInfo.credentialBackedUp,
+//           transports: req.body.transports,
+//         },
+
+//         smartWalletAddress,
+//         network
+//       );
+
+//       const user = await getUserByUsername(authInfo.username);
+
+//       for (let i = 0; i < blsKeysData.length; i++) {
+//         if (user) {
+//           await nodeCreateSuccess(
+//             blsKeysData[i].successCallback,
+//             user?.passkey?.publicKey,
+//             user?.address[network]
+//           );
+//         } else {
+//           await nodeCreateFailure(blsKeysData[i].failureCallback);
+//         }
+//       }
+
+//       const accessToken = await user.generateAuthToken();
+
+//       const clientUser = {
+//         username: user.username,
+//         linkedAccounts: user.linkedAccounts,
+//         userId: user.userId,
+//         address: user.address,
+//         email: user.email || null,
+//         twitter: user.twitter || null,
+//         discord: user.discord || null,
+//         telegram: user.telegram || null,
+//       };
+
+//       progress.push(id, {
+//         step: "Account Creation",
+//         status: "done",
+//         detail: "Account Creation Successful",
+//       });
+//       res.clearCookie("authInfo");
+
+//       return res.json({
+//         verified: verification.verified,
+//         accessToken: accessToken,
+//         userProfile: clientUser,
+//       });
+//     }
+//   } catch (e) {
+//     console.error("FULL VERIFY ERROR:", e);
+//     progress.push(id, {
+//       step: "Verification Error",
+//       status: "error",
+//       detail: "Verifying Login Failed",
+//     });
+
+//     return res
+//       .status(400)
+//       .json({ verified: false, error: "Verification failed" });
+//   }
+// });
 
 app.post("/init-add-email", async (req, res) => {
   const { email } = req.body;
