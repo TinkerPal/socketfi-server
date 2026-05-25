@@ -53,6 +53,8 @@ function processArgs(arg) {
     return nativeToScVal(Number(arg.value)); // to
   } else if (arg.type === "scSpecTypeSymbol") {
     return nativeToScVal(arg.value, { type: "symbol" }); // to
+  } else if (arg.type === "scSpecTypeString") {
+    return nativeToScVal(arg.value, { type: "string" }); // to
   } else if (arg.type === "None") {
     return nativeToScVal(null); // to
   } else if (arg.type === "Wasm") {

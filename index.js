@@ -1,6 +1,12 @@
 require("dotenv").config({ quiet: true });
+const cbor = require("cbor");
+const {
+  allowedOrigins,
+  sameSiteConfig,
+  rp_id,
+  expectedOrigin,
+} = require("./configs/allowed-origins");
 const nodeCrypto = require("crypto");
-
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
@@ -12,6 +18,11 @@ const passport = require("passport");
 const session = require("express-session");
 require("./config/twitter-setup");
 require("./config/discord-setup");
+const { router: socketFiOauthRouter } = require("./routes/socketfi-sdk-auth");
+const {
+  router: socketFiTransactionRouter,
+} = require("./routes/socketfi-sdk-transaction");
+const twitterLinkRoutes = require("./src/routes/twiterMapInvoke.routes");
 
 const {
   generateAuthenticationOptions,
@@ -19,9 +30,11 @@ const {
   verifyRegistrationResponse,
   verifyAuthenticationResponse,
 } = require("@simplewebauthn/server");
+const anyInvokeRoutes = require("./src/routes/anyInvoke.routes");
+const signRoutes = require("./src/routes/sign.routes");
 const base64url = require("base64url");
 var StellarSdk = require("@stellar/stellar-sdk");
-const { nativeToScVal, StrKey } = StellarSdk;
+const { nativeToScVal, StrKey, xdr } = StellarSdk;
 const bufferStorage = {};
 
 const {
@@ -51,6 +64,9 @@ const {
   getLoyaltyPoints,
   normalizeVersionRows,
   convertToSafeJson,
+  createContractScVal,
+  buildWebAuthnDigest,
+  sha256,
 } = require("./helper-functions");
 const nodes = require("./signer-nodes/signer-nodes");
 const {
@@ -58,6 +74,8 @@ const {
   nodeCreateSuccess,
   nodeCreateFailure,
   signatureAggregator,
+  signPopPayload,
+  signaturePop,
 } = require("./bls-nodes/bls-node-methods");
 const {
   internalSigner,
@@ -70,6 +88,8 @@ const {
   walletTxNonce,
   getSymbol,
   getWalletBal,
+
+  popNonce,
 } = require("./soroban/soroban-methods");
 const { sseProgress } = require("./tracker/progress-tracker");
 const { progress } = require("./tracker/progress");
@@ -83,8 +103,6 @@ const {
   normalizeAccessSettings,
 } = require("./soroban/account-settings-helper");
 const jwt = require("jsonwebtoken");
-
-const sameSiteConfig = process.env.ENV === "PRODUCTION" ? "none" : "none";
 
 const port = process.env.PORT || 3000;
 
@@ -101,27 +119,7 @@ mongoose
     console.error("❌ Error connecting to MongoDB:", err.message);
   });
 
-const allowedOrigins = [
-  "https://socket.fi",
-  "https://www.socket.fi",
-  "https://app.socket.fi",
-  "http://localhost:5173",
-  "http://localhost:5174",
-];
-
-const CLIENT_URL =
-  process.env.ENV === "PRODUCTION"
-    ? process.env.CLIENT_URL
-    : "http://localhost:5173";
-
-const rp_id =
-  process.env.ENV === "PRODUCTION" ? process.env.RP_ID : "localhost";
-
-const expectedOrigin = [
-  CLIENT_URL,
-  "android:apk-key-hash:nUBmf6HB48iZc6HdxHVr7fPSg8ff1gG6xTkK3e0CbQ4",
-];
-
+global.progress = progress;
 app.use(
   cors({
     origin: allowedOrigins,
@@ -148,7 +146,7 @@ app.use(
     secret:
       process.env.SESSION_SECRET || "fallback-secret-change-in-production",
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
     proxy: process.env.ENV === "PRODUCTION" ? true : false,
     cookie: {
       sameSite: process.env.ENV === "PRODUCTION" ? "none" : "lax",
@@ -164,9 +162,20 @@ app.use(passport.session());
 
 const twitterAuthRouter = require("./routes/twitter-auth");
 const discordAuthRouter = require("./routes/discord-auth");
+
 const { default: axios } = require("axios");
+const {
+  coseTo65BytePublicKey,
+  base64urlToBuffer,
+  derSignatureTo64Bytes,
+} = require("./bls-nodes/p256/p256-helper");
+const {
+  initCreateWalletPop,
+} = require("./src/controllers/createWallet.controller");
+
 app.use("/auth", twitterAuthRouter);
 app.use("/auth", discordAuthRouter);
+app.use("/auth", twitterLinkRoutes);
 
 app.get("/process/progress/:id", sseProgress);
 
@@ -302,7 +311,7 @@ app.post("/init-passkey-register", async (req, res) => {
     const userIdBytes = nodeCrypto.randomBytes(16);
     const userId = userIdBytes.toString("base64url");
     const publicId = `socketfi-${nodeCrypto.randomBytes(8).toString("hex")}`;
-    const displayName = cleanUsername || publicId;
+    const displayName = cleanUsername || "wallet1";
 
     const options = await generateRegistrationOptions({
       rpID: rp_id,
@@ -310,7 +319,7 @@ app.post("/init-passkey-register", async (req, res) => {
 
       userID: userId,
       userName: displayName,
-      userDisplayName: displayName,
+      userDisplayName: publicId,
 
       authenticatorSelection: {
         residentKey: "required",
@@ -324,7 +333,7 @@ app.post("/init-passkey-register", async (req, res) => {
         challenge: options.challenge,
         userId,
         publicId,
-        username: displayName,
+        username: publicId,
         network,
         registration: true,
         rpID: rp_id,
@@ -442,7 +451,7 @@ app.post("/init-auth", async (req, res) => {
   }
 });
 
-app.post("/verify-auth", async (req, res) => {
+app.post("/verify-auth", async (req, res, next) => {
   const { authData, id, network = "" } = req.body;
 
   try {
@@ -563,9 +572,31 @@ app.post("/verify-auth", async (req, res) => {
       });
     }
 
+    const credentialIdHex = Buffer.from(
+      verification.registrationInfo.credentialID
+    ).toString("hex");
+    const credentialPublicKeyHex = Buffer.from(
+      verification.registrationInfo.credentialPublicKey
+    ).toString("hex");
+
+    req.createRequest = {
+      credentialIdHex,
+      credentialPublicKeyHex,
+
+      username: authInfo.username,
+      network: network,
+      transports: authData?.response?.transports || authData?.transports || [],
+    };
+
+    return initCreateWalletPop(req, res, next);
+
     const blsKeysData = [];
     const resultingPk = verification.registrationInfo.credentialPublicKey;
     const passkeyBuffer = Buffer.from(resultingPk);
+
+    // const passkeyHex = passkeyBuffer.toString("hex");
+
+    const rawPasskey = coseTo65BytePublicKey(passkeyBuffer);
 
     progress.push(id, {
       step: "key generation",
@@ -588,9 +619,37 @@ app.post("/verify-auth", async (req, res) => {
       Buffer.from(blsKeypair.publicKey, "hex")
     );
 
+    const popArgs = [
+      nativeToScVal(rawPasskey, { type: "bytes" }),
+      nativeToScVal(blsBuffers, { type: "bytes" }),
+    ];
+    const popTxNonce = await popNonce(
+      internalSigner.publicKey(),
+      popArgs,
+      network
+    );
+
+    const blsWithProof = [];
+    for (let blsNode of blsKeysData) {
+      const sigBuf = await signaturePop(blsNode.signPopUrl, popTxNonce);
+      const keyBuf = Buffer.from(blsNode.publicKey, "hex");
+      const proof = xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("key"),
+          val: xdr.ScVal.scvBytes(keyBuf),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("sig"),
+          val: xdr.ScVal.scvBytes(sigBuf),
+        }),
+      ]);
+
+      blsWithProof.push(proof);
+    }
+
     const args = [
-      { value: passkeyBuffer, type: "scSpecTypeBytes" },
-      { value: blsBuffers, type: "scSpecTypeBytes" },
+      nativeToScVal(rawPasskey, { type: "bytes" }),
+      xdr.ScVal.scvVec(blsWithProof),
     ];
 
     progress.push(id, {
@@ -599,7 +658,7 @@ app.post("/verify-auth", async (req, res) => {
       detail: "Deploying Account Contract",
     });
 
-    const smartWalletAddress = await createContract(network, args);
+    const smartWalletAddress = await createContractScVal(network, args);
 
     if (!smartWalletAddress) {
       return res.status(400).json({
@@ -608,9 +667,9 @@ app.post("/verify-auth", async (req, res) => {
       });
     }
 
-    const credentialIdHex = Buffer.from(
-      verification.registrationInfo.credentialID
-    ).toString("hex");
+    // const credentialIdHex = Buffer.from(
+    //   verification.registrationInfo.credentialID
+    // ).toString("hex");
 
     const username = authInfo.username || authInfo.publicId;
 
@@ -622,6 +681,7 @@ app.post("/verify-auth", async (req, res) => {
         publicKey: Buffer.from(
           verification.registrationInfo.credentialPublicKey
         ).toString("hex"),
+        passkey65: rawPasskey.toString("hex"),
         counter: verification.registrationInfo.counter,
         deviceType: verification.registrationInfo.credentialDeviceType,
         backedUp: verification.registrationInfo.credentialBackedUp,
@@ -692,243 +752,245 @@ app.post("/verify-auth", async (req, res) => {
   }
 });
 
-// app.post("/verify-auth", async (req, res) => {
-//   const { authData, id, network = "" } = req.body;
+app.post("/create-wallet", async (req, res, next) => {
+  const { authData, id, network = "" } = req.body;
 
-//   try {
-//     const authInfo = JSON.parse(req?.cookies?.authInfo);
+  try {
+    const createInfo = JSON.parse(req?.cookies?.createInfo || "{}");
 
-//     if (!authInfo) {
-//       return res.status(400).json({ error: "Auth info not found" });
-//     }
+    if (!createInfo?.challenge) {
+      return res.status(400).json({ error: "Auth info not found" });
+    }
 
-//     const credentialIdHex = Buffer.from(authData.id, "base64url").toString(
-//       "hex"
-//     );
+    const clientData = JSON.parse(
+      Buffer.from(authData.response.clientDataJSON, "base64url").toString(
+        "utf8"
+      )
+    );
 
-//     const user = await UserAccount.getUserByPasskeyId(credentialIdHex);
+    const responseType = clientData.type;
 
-//     if (user) {
-//       const areEqual =
-//         Buffer.from(
-//           new Uint8Array(Buffer.from(user?.passkey?.id, "hex"))
-//         ).compare(Buffer.from(base64UrlToUint8Array(authData.id))) === 0;
-//       progress.push(id, {
-//         step: "login verification",
-//         status: "start",
-//         detail: "Verifying Login Credentials",
-//       });
+    if (responseType !== "webauthn.get") {
+      return res.status(400).json({
+        verified: false,
+        error: "Unsupported WebAuthn response type",
+      });
+    }
 
-//       if (areEqual) {
-//         let verification;
+    progress.push(id, {
+      step: "new account verification",
+      status: "start",
+      detail: "Verifying Account Creation Credentials",
+    });
 
-//         try {
-//           verification = await verifyAuthenticationResponse({
-//             response: authData,
-//             expectedChallenge: authInfo.challenge,
-//             expectedOrigin: expectedOrigin,
-//             expectedRPID: rp_id,
-//             requireUserVerification: true,
-//             authenticator: {
-//               credentialID: new Uint8Array(
-//                 Buffer.from(user?.passkey?.id, "hex")
-//               ),
-//               credentialPublicKey: new Uint8Array(
-//                 Buffer.from(user?.passkey?.publicKey, "hex")
-//               ),
-//               counter: user.passkey.counter,
-//               transports: user.passkey.transports,
-//             },
-//           });
-//         } catch (e) {
-//           console.log("the verification error", e);
-//         }
+    // challenge: options.challenge,
+    // createdChallenge: challenge,
+    // nonce: nonce,
+    // credentialIdHex,
+    // credentialPublicKeyHex,
 
-//         if (verification.verified) {
-//           const accessToken = await user.generateAuthToken();
+    const verification = await verifyAuthenticationResponse({
+      response: authData,
+      expectedChallenge: createInfo.challenge,
+      expectedOrigin,
+      expectedRPID: rp_id,
+      requireUserVerification: true,
 
-//           progress.push(id, {
-//             step: "retriving data",
-//             status: "start",
-//             detail: "Fetching User's Information",
-//           });
+      authenticator: {
+        credentialID: new Uint8Array(
+          Buffer.from(createInfo.credentialIdHex, "hex")
+        ),
+        credentialPublicKey: new Uint8Array(
+          Buffer.from(createInfo.credentialPublicKeyHex, "hex")
+        ),
+        counter: createInfo.counter || 0,
+        transports: createInfo.transports || [],
+      },
+    });
 
-//           const clientUser = {
-//             username: user.username,
-//             linkedAccounts: user.linkedAccounts,
-//             userId: user.userId,
-//             passkey: user.passkey.publicKey,
-//             address: user.address,
-//             email: user.email || null,
-//             twitter: user.twitter || null,
-//             discord: user.discord || null,
-//             telegram: user.telegram || null,
-//           };
+    if (!verification.verified) {
+      return res.status(400).json({
+        verified: false,
+        error: "Registration verification failed",
+      });
+    }
 
-//           progress.push(id, {
-//             step: "account login",
-//             status: "done",
-//             detail: "Login verification successful",
-//           });
+    const derSig = base64urlToBuffer(authData?.response?.signature);
 
-//           res.clearCookie("authInfo");
-//           return res.json({
-//             verified: verification.verified,
-//             accessToken: accessToken,
-//             userProfile: clientUser,
-//           });
-//         }
-//       }
-//     }
+    const signature = derSignatureTo64Bytes(derSig, {
+      enforceLowS: true,
+    });
 
-//     const verification = await verifyRegistrationResponse({
-//       response: authData,
-//       expectedChallenge: authInfo.challenge,
-//       expectedOrigin: expectedOrigin,
-//       expectedRPID: rp_id,
-//       requireUserVerification: true,
-//     });
+    const signed = buildWebAuthnDigest(authData);
 
-//     progress.push(id, {
-//       step: "new account verification",
-//       status: "start",
-//       detail: "Verifying Account Creation Credentials",
-//     });
+    const credentialIdHex = Buffer.from(
+      verification.authenticationInfo.credentialID
+    ).toString("hex");
 
-//     if (verification.verified) {
-//       const blsKeysData = [];
-//       const resultingPk = verification.registrationInfo.credentialPublicKey;
+    const blsKeysData = [];
+    const resultingPk = createInfo.credentialPublicKeyHex;
+    const passkeyBuffer = Buffer.from(resultingPk, "hex");
 
-//       const passkeyBuffer = Buffer.from(resultingPk, "hex");
-//       progress.push(id, {
-//         step: "key generation",
-//         status: "start",
-//         detail: "Generating Wallet BLS Keys",
-//       });
+    // const passkeyHex = passkeyBuffer.toString("hex");
 
-//       for (let i = 0; i < nodes.length; i++) {
-//         const blsKey = await nodeInitGenKey(nodes[i].url, network);
-//         blsKeysData.push(blsKey);
-//       }
+    const rawPasskey = coseTo65BytePublicKey(passkeyBuffer);
 
-//       if (nodes.length !== blsKeysData.length) {
-//         return res.status(400).json({
-//           error: `Incomplete BLS Keys initialization, ${blsKeysData.length} of ${nodes.length}`,
-//         });
-//       }
+    const passkeyWithProof = xdr.ScVal.scvMap([
+      new xdr.ScMapEntry({
+        key: xdr.ScVal.scvSymbol("authenticator_data"),
+        val: xdr.ScVal.scvBytes(signed?.authenticatorData),
+      }),
+      new xdr.ScMapEntry({
+        key: xdr.ScVal.scvSymbol("client_data_json"),
+        val: xdr.ScVal.scvBytes(signed?.clientDataJSON),
+      }),
 
-//       progress.push(id, {
-//         step: "key generation",
-//         status: "finalizing",
-//         detail: "Finalizing Wallet BLS Keys",
-//       });
+      new xdr.ScMapEntry({
+        key: xdr.ScVal.scvSymbol("signature"),
+        val: xdr.ScVal.scvBytes(signature),
+      }),
+    ]);
 
-//       const blsBuffers = blsKeysData.map((blsKeypair) =>
-//         Buffer.from(blsKeypair.publicKey, "hex")
-//       );
+    progress.push(id, {
+      step: "key generation",
+      status: "start",
+      detail: "Generating Wallet BLS Keys",
+    });
 
-//       const args = [
-//         // { value: authInfo.username, type: "scSpecTypeString" },
-//         { value: passkeyBuffer, type: "scSpecTypeBytes" },
-//         {
-//           value: blsBuffers,
-//           type: "scSpecTypeBytes",
-//         },
-//       ];
+    for (let i = 0; i < nodes.length; i++) {
+      const blsKey = await nodeInitGenKey(nodes[i].url, network);
+      blsKeysData.push(blsKey);
+    }
 
-//       progress.push(id, {
-//         step: "contract deployment",
-//         status: "start",
-//         detail: "Deploying Account Contract",
-//       });
+    if (nodes.length !== blsKeysData.length) {
+      return res.status(400).json({
+        error: `Incomplete BLS Keys initialization, ${blsKeysData.length} of ${nodes.length}`,
+      });
+    }
 
-//       const smartWalletAddress = await createContract(network, args);
+    const blsWithProof = [];
+    for (let blsNode of blsKeysData) {
+      const sigBuf = await signaturePop(
+        blsNode.signPopUrl,
+        createInfo?.createdChallenge
+      );
+      const keyBuf = Buffer.from(blsNode.publicKey, "hex");
+      const proof = xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("key"),
+          val: xdr.ScVal.scvBytes(keyBuf),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("sig"),
+          val: xdr.ScVal.scvBytes(sigBuf),
+        }),
+      ]);
 
-//       if (!smartWalletAddress) {
-//         return res.status(400).json({
-//           error: `An Error occured while creating smart wallet contract, try again later!`,
-//         });
-//       }
+      blsWithProof.push(proof);
+    }
 
-//       progress.push(id, {
-//         step: "Account Profile",
-//         status: "start",
-//         detail: "Creating User Profile",
-//       });
+    const args = [
+      nativeToScVal(rawPasskey, { type: "bytes" }),
+      passkeyWithProof,
+      xdr.ScVal.scvVec(blsWithProof),
+      nativeToScVal(Buffer.from(createInfo.nonce), { type: "bytes" }),
+      nativeToScVal(network, { type: "symbol" }),
+      nativeToScVal(null),
+    ];
 
-//       await createUser(
-//         authInfo.username,
-//         Buffer.from(verification.registrationInfo.credentialID).toString("hex"),
-//         {
-//           id: Buffer.from(verification.registrationInfo.credentialID).toString(
-//             "hex"
-//           ),
-//           publicKey: Buffer.from(
-//             verification.registrationInfo.credentialPublicKey
-//           ).toString("hex"),
-//           counter: verification.registrationInfo.counter,
-//           deviceType: verification.registrationInfo.credentialDeviceType,
-//           backedUp: verification.registrationInfo.credentialBackedUp,
-//           transports: req.body.transports,
-//         },
+    progress.push(id, {
+      step: "contract deployment",
+      status: "start",
+      detail: "Deploying Account Contract",
+    });
 
-//         smartWalletAddress,
-//         network
-//       );
+    const smartWalletAddress = await createContractScVal(network, args);
 
-//       const user = await getUserByUsername(authInfo.username);
+    if (!smartWalletAddress) {
+      return res.status(400).json({
+        error:
+          "An error occurred while creating smart wallet contract, try again later.",
+      });
+    }
 
-//       for (let i = 0; i < blsKeysData.length; i++) {
-//         if (user) {
-//           await nodeCreateSuccess(
-//             blsKeysData[i].successCallback,
-//             user?.passkey?.publicKey,
-//             user?.address[network]
-//           );
-//         } else {
-//           await nodeCreateFailure(blsKeysData[i].failureCallback);
-//         }
-//       }
+    const username = authData.username || createInfo.username;
 
-//       const accessToken = await user.generateAuthToken();
+    await createUser(
+      username,
+      authData.id,
+      {
+        id: createInfo.credentialIdHex,
+        publicKey: Buffer.from(passkeyBuffer).toString("hex"),
+        passkey65: rawPasskey.toString("hex"),
+        // counter: verification.registrationInfo.counter || 0,
+        // deviceType: verification.registrationInfo.credentialDeviceType,
+        // backedUp: verification.registrationInfo.credentialBackedUp,
+        // transports:
+        //   authData?.response?.transports || authData?.transports || [],
+      },
+      smartWalletAddress,
+      network
+    );
 
-//       const clientUser = {
-//         username: user.username,
-//         linkedAccounts: user.linkedAccounts,
-//         userId: user.userId,
-//         address: user.address,
-//         email: user.email || null,
-//         twitter: user.twitter || null,
-//         discord: user.discord || null,
-//         telegram: user.telegram || null,
-//       };
+    const user = await getUserByUsername(createInfo.username);
 
-//       progress.push(id, {
-//         step: "Account Creation",
-//         status: "done",
-//         detail: "Account Creation Successful",
-//       });
-//       res.clearCookie("authInfo");
+    for (let i = 0; i < blsKeysData.length; i++) {
+      try {
+        if (user) {
+          await nodeCreateSuccess(
+            blsKeysData[i].successCallback,
+            user.passkey.publicKey,
+            user.address[network]
+          );
+        } else {
+          await nodeCreateFailure(blsKeysData[i].failureCallback);
+        }
+      } catch (nodeError) {
+        console.error("BLS NODE CALLBACK ERROR:", nodeError.message);
+      }
+    }
 
-//       return res.json({
-//         verified: verification.verified,
-//         accessToken: accessToken,
-//         userProfile: clientUser,
-//       });
-//     }
-//   } catch (e) {
-//     console.error("FULL VERIFY ERROR:", e);
-//     progress.push(id, {
-//       step: "Verification Error",
-//       status: "error",
-//       detail: "Verifying Login Failed",
-//     });
+    const accessToken = await user.generateAuthToken();
 
-//     return res
-//       .status(400)
-//       .json({ verified: false, error: "Verification failed" });
-//   }
-// });
+    const clientUser = {
+      username: user.username,
+      linkedAccounts: user.linkedAccounts,
+      userId: user.userId,
+      address: user.address,
+      email: user.email || null,
+      twitter: user.twitter || null,
+      discord: user.discord || null,
+      telegram: user.telegram || null,
+    };
+
+    progress.push(id, {
+      step: "Account Creation",
+      status: "done",
+      detail: "Account Creation Successful",
+    });
+
+    res.clearCookie("authInfo");
+
+    return res.json({
+      verified: true,
+      accessToken,
+      userProfile: clientUser,
+    });
+  } catch (e) {
+    console.error("FULL VERIFY ERROR:", e);
+
+    progress.push(id, {
+      step: "Verification Error",
+      status: "error",
+      detail: "Verifying Login Failed",
+    });
+
+    return res.status(400).json({
+      verified: false,
+      error: "Verification failed",
+    });
+  }
+});
 
 app.post("/init-add-email", async (req, res) => {
   const { email } = req.body;
@@ -1071,7 +1133,8 @@ app.post("/verify-email", async (req, res) => {
 });
 
 app.get("/init-twitter-auth", async (req, res, next) => {
-  const { token } = req.query;
+  const { token, network } = req.query;
+
   if (!token) {
     return res.status(401).json({ error: "token query param is required" });
   }
@@ -1084,7 +1147,7 @@ app.get("/init-twitter-auth", async (req, res, next) => {
 
   const { userId } = accessVerification;
 
-  req.session.twitter_auth_context = { userId };
+  req.session.twitter_auth_context = { userId, network };
 
   req.session.save((err) => {
     if (err) {
@@ -1862,320 +1925,8 @@ app.post("/submit-transaction-external", async (req, res) => {
   }
 });
 
-app.post("/init-sign-transaction", async (req, res) => {
-  try {
-    const { contractId, network, callFunction, sId = "" } = req.body;
-
-    if (!network || !contractId || !callFunction) {
-      progress.push(sId, {
-        step: "transaction authentication",
-        status: "error",
-        detail: "Request body is incomplete",
-      });
-      return res.status(400).json({ error: "request body is incomplete" });
-    }
-
-    const authHeader = req.headers["authorization"];
-
-    if (!authHeader) {
-      progress.push(sId, {
-        step: "transaction authentication",
-        status: "error",
-        detail: "Authorization header is missing",
-      });
-      return res.status(401).json({ error: "Authorization header is missing" });
-    }
-
-    progress.push(sId, {
-      step: "transaction authentication",
-      status: "start",
-      detail: "Retrieving User Details...",
-    });
-    const accessToken = authHeader.split(" ")[1];
-
-    const accessVerification = authenticateToken(accessToken);
-
-    const user = await getUserByUsername(accessVerification.username);
-
-    if (!user) {
-      progress.push(sId, {
-        step: "transaction authentication",
-        status: "error",
-        detail: "No user found or user not authorized",
-      });
-      return res
-        .status(400)
-        .json({ error: "No user found or user not authorized" });
-    }
-
-    progress.push(sId, {
-      step: "transaction authentication",
-      status: "progress",
-      detail: "Authenticating User Credentials...",
-    });
-
-    const options = await generateAuthenticationOptions({
-      rpID: rp_id,
-      allowCredentials: [
-        {
-          id: new Uint8Array(Buffer.from(user.passkey.id, "hex")),
-          type: "public-key",
-          transports: user.passkey.transports,
-        },
-      ],
-    });
-
-    res.cookie(
-      "signInfo",
-      JSON.stringify({
-        userId: user.userId,
-        username: user.username.toLowerCase(),
-        data: encodeData({ contractId, network, callFunction }),
-        challenge: options.challenge,
-      }),
-      { httpOnly: true, maxAge: 60000, secure: true, sameSite: sameSiteConfig }
-    );
-
-    progress.push(sId, {
-      step: "transaction authentication",
-      status: "progress",
-      detail: "User Authentication Initialized",
-    });
-    res.json({ options: options, signAccess: true });
-  } catch (error) {
-    console.error(
-      "Error:",
-      error.response ? error.response.data : error.message
-    );
-    progress.push(sId, {
-      step: "transaction authentication",
-      status: "error",
-      detail: response
-        ? error.response.data
-        : error.message || "No user found or user not authorized",
-    });
-    return res
-      .status(400)
-      .json({ error: "No user found or user not authorized" });
-  }
-});
-
-app.post("/any-invoke-with-sig", async (req, res) => {
-  const {
-    contractId,
-    network,
-    callFunction,
-    args = [],
-    sigData,
-    txDetails = null,
-    sId = "",
-  } = req.body;
-
-  try {
-    progress.push(sId, {
-      step: "transaction creation",
-      status: "start",
-      detail: "Transaction Creation Started",
-    });
-
-    if (!network || !contractId || !callFunction || !sigData) {
-      progress.push(sId, {
-        step: "transaction creation",
-        status: "error",
-        detail: "Request body is incomplete",
-      });
-      return res.status(400).json({ error: "request body is incomplete" });
-    }
-
-    const signInfo = JSON.parse(req.cookies.signInfo);
-    if (!signInfo) {
-      progress.push(sId, {
-        step: "transaction creation",
-        status: "error",
-        detail: "Signature info not found",
-      });
-      return res.status(400).json({ error: "Signature info not found" });
-    }
-
-    const authHeader = req.headers["authorization"];
-
-    if (!authHeader) {
-      progress.push(sId, {
-        step: "transaction creation",
-        status: "error",
-        detail: "Authorization header is missing",
-      });
-      return res.status(401).json({ error: "Authorization header is missing" });
-    }
-
-    const accessToken = authHeader.split(" ")[1];
-    progress.push(sId, {
-      step: "transaction creation",
-      status: "progress",
-      detail: "Account Access Verification ",
-    });
-
-    const accessVerification = authenticateToken(accessToken);
-
-    const user = await getUserByUsername(accessVerification.username);
-
-    if (!user) {
-      progress.push(sId, {
-        step: "transaction creation",
-        status: "error",
-        detail: "No user found or user not authorized",
-      });
-      return res
-        .status(400)
-        .json({ error: "No user found or user not authorized" });
-    }
-
-    const areEqual =
-      Buffer.from(
-        new Uint8Array(Buffer.from(user?.passkey?.id, "hex"))
-      ).compare(Buffer.from(base64UrlToUint8Array(sigData.id))) === 0;
-
-    if (!areEqual) {
-      return res.status(400).json({ error: "Invalid signature data received" });
-    }
-
-    const verification = await verifyAuthenticationResponse({
-      response: sigData,
-      expectedChallenge: signInfo.challenge,
-      expectedOrigin: expectedOrigin,
-      expectedRPID: rp_id,
-      requireUserVerification: true,
-      authenticator: {
-        credentialID: new Uint8Array(Buffer.from(user?.passkey?.id, "hex")),
-        credentialPublicKey: new Uint8Array(
-          Buffer.from(user?.passkey?.publicKey, "hex")
-        ),
-        counter: user.passkey.counter,
-        transports: user.passkey.transports,
-      },
-    });
-
-    if (verification.verified) {
-      progress.push(sId, {
-        step: "transaction creation",
-        status: "progress",
-        detail: "Transaction Approval Verification ",
-      });
-
-      const dataValid =
-        encodeData({ contractId, network, callFunction }) === signInfo.data;
-
-      if (
-        user.username !== signInfo.username ||
-        user.userId !== signInfo.userId ||
-        !dataValid
-      ) {
-        progress.push(sId, {
-          step: "transaction creation",
-          status: "error",
-          detail: "Something wrong with signed transaction",
-        });
-        return res
-          .status(400)
-          .json({ error: "Something wrong with signed transaction" });
-      }
-
-      progress.push(sId, {
-        step: "transaction creation",
-        status: "progress",
-        detail: "Fetching Transaction Nonce ",
-      });
-
-      const txNonceRes = await walletTxNonce(
-        internalSigner.publicKey(),
-        network,
-        contractId,
-        "get_tx_payload",
-        callFunction?.name,
-        args
-      );
-
-      const txNonce = txNonceRes?.results[0]?.returnValueJson?.bytes;
-
-      progress.push(sId, {
-        step: "transaction submission",
-        status: "progress",
-        detail: "Computing BLS Signatures",
-      });
-
-      const signatureAggregate = await signatureAggregator(
-        network,
-        user.passkey.publicKey,
-        contractId,
-        txNonce
-      );
-
-      const callArgs = [
-        ...args, // Exclude last element
-        { value: signatureAggregate, type: "scSpecTypeBytes" }, // Replace it
-      ];
-
-      progress.push(sId, {
-        step: "transaction submission",
-        status: "progress",
-        detail: "Submitting Signed Transaction",
-      });
-
-      const txResponse = await invokeContract(
-        network,
-        contractId,
-        callFunction?.name,
-        callArgs
-      );
-
-      if (!txResponse) {
-        progress.push(sId, {
-          step: "transaction creation",
-          status: "error",
-          detail: "Transaction Submission Failed",
-        });
-        return res.status(400).json({
-          error: "Transaction Submission Failed",
-        });
-      } else if (txResponse && txDetails) {
-        const txRecord = {
-          ...txDetails,
-          txId: txResponse?.txHash,
-          network: network,
-        };
-
-        await recordTransaction(txRecord);
-        progress.push(sId, {
-          step: "transaction submission",
-          status: "done",
-          detail: " Transaction Submission Successful",
-          eid: `txHash_${txResponse?.txHash}`,
-        });
-      }
-
-      res.status(200).json({
-        message: "transaction successful",
-        data: txResponse,
-      });
-    }
-  } catch (error) {
-    progress.push(sId, {
-      step: "transaction creation",
-      status: "error",
-      detail: error.response
-        ? error.response.data
-        : error.message || "Transaction Submission Failed",
-    });
-    return res.status(400).json({
-      error: error.response ? error.response.data : error.message,
-    });
-
-    console.error(
-      "Error:",
-      error.response ? error.response.data : error.message
-    );
-  }
-});
+app.use(signRoutes);
+app.use(anyInvokeRoutes);
 
 app.post("/aqua-swap-with-sig", async (req, res) => {
   const {
@@ -3052,6 +2803,11 @@ app.post("/get-fee-quote", async (req, res) => {
   }
 });
 
+//SDK AUTH ROUTES
+
+app.use("/oauth", socketFiOauthRouter);
+app.use("/api", socketFiTransactionRouter);
+
 app.post("/get-account-stats", async (req, res) => {
   try {
     const authHeader = req.headers["authorization"];
@@ -3317,6 +3073,24 @@ app.get("/", (req, res) => {
         </body>
       </html>
     `);
+});
+
+app.use((error, req, res, next) => {
+  console.error("Error:", error.response ? error.response.data : error.message);
+
+  if (global.progress && req.body?.sId) {
+    global.progress.push(req.body.sId, {
+      step: "transaction creation",
+      status: "error",
+      detail: error.response
+        ? error.response.data
+        : error.message || "Transaction Submission Failed",
+    });
+  }
+
+  return res.status(error.status || 400).json({
+    error: error.response ? error.response.data : error.message,
+  });
 });
 
 app.listen(port, () => {

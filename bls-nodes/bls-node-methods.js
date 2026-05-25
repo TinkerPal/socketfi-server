@@ -15,6 +15,18 @@ async function nodeInitGenKey(BASE_URL, network) {
     return res.data;
   }
 }
+async function nodeIdMapSig(BASE_URL, wallet, platform, id) {
+  const res = await axios.post(`${BASE_URL}/id-mapping/signature`, {
+    wallet,
+    platform,
+    id,
+  });
+
+  if (res?.data) {
+    console.log("bls generated");
+    return res.data;
+  }
+}
 
 async function nodeCreateFailure(failureCallbackUrl) {
   const res = await axios.delete(`${failureCallbackUrl}`, {});
@@ -50,6 +62,20 @@ async function nodeSignPayload(
         payload: payload,
       }
     );
+
+    if (res?.data) {
+      return bytesToPoint(Buffer.from(res?.data?.signature, "hex"));
+      // return Buffer.from(res?.data?.signature, "hex");
+    }
+  } catch (e) {
+    console.log("the error", e);
+  }
+}
+async function signPopPayload(url, payload) {
+  try {
+    const res = await axios.post(url, {
+      payload: payload,
+    });
 
     if (res?.data) {
       return bytesToPoint(Buffer.from(res?.data?.signature, "hex"));
@@ -99,19 +125,28 @@ async function signatureAggregator(network, passkey, smartWalletId, payload) {
   return finalAggregatedSig;
 }
 
+async function signaturePop(url, payload) {
+  const sig = await signPopPayload(url, payload);
+  const sigG2 = bls12_381.G2.Point.fromAffine(sig);
+
+  const finalSig = pointToBytes(sigG2.toAffine());
+
+  return finalSig;
+}
+
+// nodeIdMapSig(
+//   "http://localhost:3005",
+//   "CBE3WZORB6O3HGKE4ALJH7A5TYFYXC2U5LXFVYIKQ2GDK43TLYMFWZQR",
+//   "x",
+//   "234424244"
+// );
+
 module.exports = {
   nodeInitGenKey,
   nodeCreateFailure,
   nodeCreateSuccess,
   signatureAggregator,
+  signPopPayload,
+  signaturePop,
+  nodeIdMapSig,
 };
-
-// signatureAggregator(
-//   "PUBLIC",
-//   "1111",
-//   "AAAA",
-//   "7f8cbaf9b9f4fd6b69fd4e8d526b9579f8743611c20b13375f5d7119361db309c"
-// );
-// nodeInitGenKey(nodes[0].url, "PUBLIC");
-// nodeCreateFailure(nodes[0].url, 3, "PUBLIC");
-// nodeCreateSuccess(nodes[0].url, 3, "PUBLIC", "1111", "AAAA");
