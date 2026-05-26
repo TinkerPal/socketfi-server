@@ -664,6 +664,50 @@ function buildWebAuthnDigest(sigData) {
   };
 }
 
+const DECIMALS = 7;
+
+function shiftDecimalString(value, decimals = DECIMALS) {
+  if (typeof value !== "string") return value;
+
+  // Only transform integer strings
+  if (!/^-?\d+$/.test(value)) {
+    return value;
+  }
+
+  const negative = value.startsWith("-");
+  const digits = negative ? value.slice(1) : value;
+
+  // validate as blockchain integer
+  BigInt(digits);
+
+  const padded = digits.padStart(decimals + 1, "0");
+
+  const integer = padded.slice(0, -decimals);
+  const fraction = padded.slice(-decimals).replace(/0+$/, "");
+
+  const formatted = fraction.length > 0 ? `${integer}.${fraction}` : integer;
+
+  return negative ? `-${formatted}` : formatted;
+}
+
+function normalizeDecisionAmounts(input, decimals = DECIMALS) {
+  if (Array.isArray(input)) {
+    return input.map((v) => normalizeDecisionAmounts(v, decimals));
+  }
+
+  if (input !== null && typeof input === "object") {
+    const result = {};
+
+    for (const [key, value] of Object.entries(input)) {
+      result[key] = normalizeDecisionAmounts(value, decimals);
+    }
+
+    return result;
+  }
+
+  return shiftDecimalString(input, decimals);
+}
+
 module.exports = {
   createUser,
   getUserByUsername,
@@ -683,4 +727,5 @@ module.exports = {
   convertToSafeJson,
   buildWebAuthnDigest,
   sha256,
+  normalizeDecisionAmounts,
 };

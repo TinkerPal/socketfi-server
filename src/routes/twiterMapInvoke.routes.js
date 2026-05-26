@@ -47,7 +47,7 @@ async function loadPendingTwitterLink(req, res, next) {
     validatorSigs: regValdatorSigs,
     sigData: req.body.sigData,
     txDetails: pending.initData.signInfo,
-    sId: "",
+    sId: req.body?.sId,
   };
 
   req.cookies = req.cookies || {};
