@@ -134,13 +134,6 @@ async function signaturePop(url, payload) {
   return finalSig;
 }
 
-// nodeIdMapSig(
-//   "http://localhost:3005",
-//   "CBE3WZORB6O3HGKE4ALJH7A5TYFYXC2U5LXFVYIKQ2GDK43TLYMFWZQR",
-//   "x",
-//   "234424244"
-// );
-
 module.exports = {
   nodeInitGenKey,
   nodeCreateFailure,
