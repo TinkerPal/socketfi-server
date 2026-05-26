@@ -4,7 +4,9 @@ const {
   invokeCreate,
   internalSigner,
   contractGet,
+  invokeCreateScVal,
 } = require("./soroban/soroban-methods");
+const crypto = require("crypto");
 
 // async function createUser(username, userId, passkey, smartWalletId, network) {
 //   try {
@@ -133,6 +135,21 @@ const getUserByUsername = async (username) => {
 async function createContract(network, args) {
   try {
     const res = await invokeCreate(
+      network,
+      contracts[network].MASTER_CONTRACT,
+      "create_wallet",
+      args
+    );
+
+    return res?.resultMetaJson?.v4?.soroban_meta?.return_value?.address;
+  } catch (e) {
+    console.log(e);
+  }
+}
+
+async function createContractScVal(network, args) {
+  try {
+    const res = await invokeCreateScVal(
       network,
       contracts[network].MASTER_CONTRACT,
       "create_wallet",
@@ -591,11 +608,68 @@ function convertToSafeJson(inputArray) {
   };
 }
 
+function base64urlToBuffer(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new TypeError("base64url value must be a non-empty string");
+  }
+
+  const clean = value.trim();
+
+  const padLength = (4 - (clean.length % 4)) % 4;
+
+  return Buffer.from(
+    clean.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat(padLength),
+    "base64"
+  );
+}
+
+/**
+ * SHA256 helper
+ */
+function sha256(data) {
+  return crypto.createHash("sha256").update(data).digest();
+}
+
+/**
+ * Build exact WebAuthn signed digest
+ *
+ * WebAuthn signs:
+ * SHA256(
+ *   authenticatorData || SHA256(clientDataJSON)
+ * )
+ */
+function buildWebAuthnDigest(sigData) {
+  if (!sigData?.response) {
+    throw new Error("Invalid sigData");
+  }
+
+  const authenticatorData = base64urlToBuffer(
+    sigData.response.authenticatorData
+  );
+
+  const clientDataJSON = base64urlToBuffer(sigData.response.clientDataJSON);
+
+  const clientDataHash = sha256(clientDataJSON);
+
+  const signedPayload = Buffer.concat([authenticatorData, clientDataHash]);
+
+  const digest = sha256(signedPayload);
+
+  return {
+    authenticatorData,
+    clientDataJSON,
+    clientDataHash,
+    signedPayload,
+    digest,
+  };
+}
+
 module.exports = {
   createUser,
   getUserByUsername,
   findUserByAddress,
   createContract,
+  createContractScVal,
   base64UrlToUint8Array,
   attachContractToUser,
   recordTransaction,
@@ -607,4 +681,6 @@ module.exports = {
   normalizeVersionRows,
   formatStroops,
   convertToSafeJson,
+  buildWebAuthnDigest,
+  sha256,
 };

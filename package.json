@@ -19,6 +19,7 @@
 		"base64url": "^3.0.1",
 		"bignumber.js": "^9.3.1",
 		"buffer": "^6.0.3",
+		"cbor": "^10.0.12",
 		"connect-mongodb-session": "^5.0.0",
 		"cookie-parser": "^1.4.7",
 		"cors": "^2.8.5",
@@ -28,12 +29,14 @@
 		"ejs": "^5.0.1",
 		"express": "^5.1.0",
 		"express-session": "^1.19.0",
+		"ioredis": "^5.10.1",
 		"jsonwebtoken": "^9.0.2",
 		"mongoose": "^8.17.0",
 		"nodemailer": "^8.0.3",
 		"passport": "^0.7.0",
 		"passport-discord": "^0.1.4",
 		"passport-twitter": "^1.0.4",
+		"stellar-sdk": "^13.3.0",
 		"swagger-jsdoc": "^6.2.8",
 		"swagger-ui-express": "^5.0.1"
 	}

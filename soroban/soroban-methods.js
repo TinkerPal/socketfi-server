@@ -1,4 +1,5 @@
 require("dotenv").config({ quiet: true });
+
 const {
   Contract,
   TransactionBuilder,
@@ -11,8 +12,9 @@ const {
   Account,
   rpc,
   scValToNative,
+  xdr,
 } = require("@stellar/stellar-sdk");
-const { createHash } = require("crypto");
+const crypto = require("crypto");
 
 const BASE_FEE = "1000000";
 
@@ -112,6 +114,41 @@ async function invokeCreate(network, contractId, operation, args) {
   }
 }
 
+async function invokeCreateScVal(network, contractId, operation, args) {
+  try {
+    const contract = new Contract(contractId);
+
+    const source = await RpcServer(network).getAccount(
+      internalSigner.publicKey()
+    );
+
+    const txBuilder = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: Networks[network],
+    });
+
+    const tx = txBuilder
+      .addOperation(contract.call(operation, ...args))
+      .setTimeout(TimeoutInfinite);
+
+    const builtTxXdr = tx.build().toXDR();
+
+    const prepareTx = await RpcServer(network).prepareTransaction(builtTxXdr);
+
+    const txSign = TransactionBuilder.fromXDR(prepareTx, Networks[network]);
+
+    txSign.sign(internalSigner);
+
+    const res = await RpcServer(network, "json").sendTransaction(
+      txSign.toXDR()
+    );
+
+    return res;
+  } catch (e) {
+    console.log(e.message);
+  }
+}
+
 // --- tiny helpers -----------------------------------------------------------
 const q = new Map();
 const enqueue = (k, job) => {
@@ -157,7 +194,15 @@ async function pollForFinality(
   return null;
 }
 
-async function invokeContract(network, contractId, operation, args, opts = {}) {
+async function invokeContract(
+  network,
+  contractId,
+  operation,
+  args,
+  sigObject = null,
+  valid_until_ledger,
+  opts = {}
+) {
   const {
     watchdogMs = 8_000, // trigger fee-bump if not settled/responded by then
     bumpFactor = 10, // ≥10x to replace mempool entry
@@ -185,7 +230,9 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
         invokeArgs.push(processArgs(a));
       }
     }
-
+    if (sigObject) {
+      invokeArgs.push(sigObject);
+    }
     // -- 2) Build INNER tx (source = payer in your code)
     const source = await server.getAccount(payerId);
 
@@ -194,7 +241,13 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
       networkPassphrase: Networks[network],
     })
       .setTimeout(90)
-      .addOperation(contract.call(operation, ...invokeArgs))
+      .addOperation(
+        contract.call(
+          operation,
+          ...invokeArgs,
+          nativeToScVal(valid_until_ledger, { type: "u32" })
+        )
+      )
       .build();
 
     // -- 3) Prepare (simulate + footprint/resource fee)
@@ -258,6 +311,194 @@ async function invokeContract(network, contractId, operation, args, opts = {}) {
   });
 }
 
+async function invokeContractMap(
+  network,
+  contractId,
+  operation,
+  args,
+  validatorSigs,
+  sigObject = null,
+  valid_until_ledger,
+  opts = {}
+) {
+  const {
+    watchdogMs = 8_000, // trigger fee-bump if not settled/responded by then
+    bumpFactor = 10, // ≥10x to replace mempool entry
+    bumpFloorStroops = 2_000_000, // hard floor (tune to your budget)
+  } = opts;
+
+  const server = RpcServer(network, "json");
+  const contract = new Contract(contractId);
+
+  // PAYER (g-account) — also used as inner source in your current flow
+  const payerKeypair = internalSigner;
+  const payerId = payerKeypair.publicKey();
+
+  // IMPORTANT: queue by the account whose sequence is used.
+  return enqueue(payerId, async () => {
+    // -- 1) Build args -------------------------------------------------------
+
+    const validatorSigsScVal = [];
+    for (let validator of validatorSigs) {
+      const signatureBuf = Buffer.from(validator?.signature, "hex");
+      const validatorBuf = Buffer.from(validator?.validator, "hex");
+
+      const sigObj = xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("signature"),
+          val: xdr.ScVal.scvBytes(signatureBuf),
+        }),
+        new xdr.ScMapEntry({
+          key: xdr.ScVal.scvSymbol("validator"),
+          val: xdr.ScVal.scvBytes(validatorBuf),
+        }),
+      ]);
+      validatorSigsScVal.push(sigObj);
+    }
+
+    const invokeArgs = [];
+    for (const a of args || []) {
+      invokeArgs.push(nativeToScVal(a, { type: "string" }));
+    }
+
+    if (validatorSigs.length > 0) {
+      invokeArgs.push(xdr.ScVal.scvVec(validatorSigsScVal));
+    }
+
+    if (sigObject) {
+      invokeArgs.push(sigObject);
+    }
+    // -- 2) Build INNER tx (source = payer in your code)
+    const source = await server.getAccount(payerId);
+
+    let inner = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: Networks[network],
+    })
+      .setTimeout(90)
+      .addOperation(
+        contract.call(
+          operation,
+          ...invokeArgs,
+          nativeToScVal(valid_until_ledger, { type: "u32" })
+        )
+      )
+      .build();
+
+    // -- 3) Prepare (simulate + footprint/resource fee)
+    const preparedXdr = await server.prepareTransaction(inner.toXDR());
+    inner = TransactionBuilder.fromXDR(preparedXdr, Networks[network]);
+
+    // -- 4) Sign INNER
+    inner.sign(payerKeypair);
+
+    const innerHashHex = inner.hash(Networks[network]).toString("hex");
+
+    // -- 5) Send INNER with watchdog -----------------------------------------
+    let settled = false;
+    const txPromise = server
+      .sendTransaction(inner.toXDR())
+      .then((res) => {
+        settled = true;
+        return res;
+      })
+      .catch((err) => {
+        settled = true;
+        throw err;
+      });
+
+    let firstRes;
+    try {
+      firstRes = await Promise.race([
+        txPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => {
+            if (!settled) reject(new Error("WATCHDOG_TIMEOUT"));
+          }, watchdogMs)
+        ),
+      ]);
+
+      // If we got a resolved result, return it
+      if (firstRes && firstRes.status && firstRes.status !== "PENDING") {
+        return firstRes;
+      }
+    } catch (e) {
+      if (e.message !== "WATCHDOG_TIMEOUT") throw e;
+    }
+
+    // -- 6) Fee-bump fallback (rebid much higher)
+    const innerFee = parseInt(inner.fee, 10) || 0;
+    const maxFee = Math.max(Math.ceil(innerFee * bumpFactor), bumpFloorStroops);
+
+    let feeBump = TransactionBuilder.buildFeeBumpTransaction(
+      payerId, // fee source (g-account)
+      maxFee, // total fee in stroops
+      inner, // the prepared & signed inner
+      Networks[network]
+    );
+    feeBump.sign(payerKeypair);
+
+    const fbRes = await server.sendTransaction(feeBump.toXDR());
+
+    if (fbRes && fbRes.status && fbRes.status !== "PENDING") return fbRes;
+
+    return fbRes || { status: "PENDING", innerHash: innerHashHex };
+  });
+}
+
+async function popNonce(pubKey, args, network) {
+  try {
+    const server = RpcServer(network, "json");
+    const source = await server.getAccount(pubKey);
+    const txBuilder = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: Networks[network],
+    });
+
+    const contract = new Contract(contracts[network].MASTER_CONTRACT);
+    const txXdr = txBuilder
+      .addOperation(contract.call("get_pop_salt", ...args))
+      .setTimeout(TimeoutInfinite)
+      .build()
+      .toXDR();
+
+    const res = await server.simulateTransaction(txXdr);
+
+    return res?.results[0]?.returnValueJson?.bytes;
+  } catch (e) {
+    console.log(e.message);
+  }
+}
+
+async function createWalletChallenge(nonce, network) {
+  try {
+    const server = RpcServer(network, "json");
+    const source = await server.getAccount(internalSigner.publicKey());
+    const txBuilder = new TransactionBuilder(source, {
+      fee: BASE_FEE,
+      networkPassphrase: Networks[network],
+    });
+
+    const contract = new Contract(contracts[network].MASTER_CONTRACT);
+    const txXdr = txBuilder
+      .addOperation(
+        contract.call(
+          "get_pop_challenge",
+          nativeToScVal(nonce, { type: "bytes" }),
+          nativeToScVal(network, { type: "symbol" })
+        )
+      )
+      .setTimeout(TimeoutInfinite)
+      .build()
+      .toXDR();
+
+    const res = await server.simulateTransaction(txXdr);
+
+    return res?.results[0]?.returnValueJson?.bytes;
+  } catch (e) {
+    console.log(e.message);
+  }
+}
 async function walletTxNonce(
   pubKey,
   network,
@@ -319,6 +560,9 @@ async function walletTxNonce(
     }
 
     const server = RpcServer(network, "json");
+    const valid_until_ledger =
+      (await server.getLatestLedger()).result.sequence + 30;
+
     const source = await server.getAccount(pubKey);
     const txBuilder = new TransactionBuilder(source, {
       fee: BASE_FEE,
@@ -331,8 +575,8 @@ async function walletTxNonce(
         contract.call(
           operation,
           nativeToScVal(func, { type: "string" }),
-          nativeToScVal(invokeArgs, { type: "vec" })
-          // nativeToScVal("4200", { type: "u32" })
+          nativeToScVal(invokeArgs, { type: "vec" }),
+          nativeToScVal(valid_until_ledger, { type: "u32" })
         )
       )
       .setTimeout(TimeoutInfinite)
@@ -340,8 +584,9 @@ async function walletTxNonce(
       .toXDR();
 
     const res = await server.simulateTransaction(txXdr);
+    const challenge = res?.results[0]?.returnValueJson?.bytes;
 
-    return res;
+    return { challenge, valid_until_ledger };
   } catch (e) {
     console.log(e.message);
   }
@@ -551,14 +796,18 @@ async function getVersionData(contractId, network = "PUBLIC") {
     const contract = new Contract(contracts[network].MASTER_CONTRACT);
 
     const tx = txBuilder
-      .addOperation(contract.call("get_latest_version"))
+      .addOperation(contract.call("get_wallet_version"))
       .setTimeout(TimeoutInfinite)
       .build();
 
     const latestVersion = (await simulateTx(tx, server))?.toString("hex");
 
     const data = await server.getContractWasmByContractId(contractId);
-    const installedHash = createHash("sha256").update(data).digest("hex");
+    const installedHash = crypto
+      .createHash("sha256")
+      .update(data)
+      .digest("hex");
+
     const needUpdate = latestVersion !== installedHash;
 
     const res = {
@@ -577,6 +826,7 @@ module.exports = {
   getVersionData,
   sendWithFailover,
   invokeCreate,
+  invokeCreateScVal,
   internalSigner,
   RpcServer,
   contractGet,
@@ -586,4 +836,7 @@ module.exports = {
   walletTxNonce,
   getSymbol,
   getWalletBal,
+  popNonce,
+  createWalletChallenge,
+  invokeContractMap,
 };

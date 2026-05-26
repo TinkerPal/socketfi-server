@@ -2,6 +2,9 @@ require("dotenv").config({ quiet: true });
 const passport = require("passport");
 const TwitterStrategy = require("passport-twitter").Strategy;
 const { UserAccount } = require("../models/models");
+const {
+  initSignConnectTransactionService,
+} = require("../src/services/sign-connect-transaction.service");
 
 passport.serializeUser((user, done) => {
   done(null, user);
@@ -26,6 +29,8 @@ passport.use(
       try {
         const userId = req.session?.twitter_auth_context?.userId;
 
+        const network = req.session?.twitter_auth_context?.network;
+
         if (!userId) {
           return done(new Error("No userId in session context"));
         }
@@ -36,10 +41,31 @@ passport.use(
         });
 
         if (existingTwitter) {
-          return done(
-            new Error("Twitter account already linked to another user")
-          );
+          return done(null, false, {
+            code: "TWITTER_ALREADY_LINKED",
+            message: "Twitter account already linked to another user",
+          });
         }
+
+        const account = await UserAccount.findOne({
+          userId,
+        });
+
+        const wallet = account?.address?.[network];
+
+        const initData = await initSignConnectTransactionService({
+          user: account,
+          signRequest: {
+            contractId: wallet,
+            network,
+            callFunction: "add_id_wallet_map",
+            args: [
+              { value: profile._json.id_str, type: "scSpecTypeString" },
+              { value: "x", type: "scSpecTypeString" },
+            ],
+            sId: "",
+          },
+        });
 
         const twitterData = {
           twitter: {
@@ -50,12 +76,31 @@ passport.use(
           },
         };
 
-        await UserAccount.updateOne(
-          { userId },
-          { $set: twitterData, $addToSet: { linkedAccounts: "twitter" } }
-        );
+        delete req.session.pending_twitter_link;
+        req.session.pending_twitter_link = {
+          userId,
+          wallet,
+          network,
+          twitterData,
+          initData,
+          expiresAt: Date.now() + 5 * 60 * 1000,
+          consumed: false,
+        };
 
-        done(null, { userId, ...twitterData });
+        // await UserAccount.updateOne(
+        //   { userId },
+        //   { $set: twitterData, $addToSet: { linkedAccounts: "twitter" } }
+        // );
+
+        req.session.save((err) => {
+          if (err) return done(err);
+
+          return done(null, {
+            userId,
+            pendingTwitterLink: true,
+            ...twitterData,
+          });
+        });
       } catch (err) {
         console.error("[passport] Twitter OAuth error:", err);
         done(err);
