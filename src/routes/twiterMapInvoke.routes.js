@@ -63,7 +63,8 @@ async function saveTwitterAfterInvoke(req, res, next) {
 
   res.json = async (data) => {
     try {
-      if (data?.data?.status === "SUCCESS" && req.pendingTwitterLink) {
+      console.log("the data for binding", data);
+      if (data?.data?.txHash && req.pendingTwitterLink) {
         await UserAccount.updateOne(
           { userId: req.pendingTwitterLink.userId },
           {
