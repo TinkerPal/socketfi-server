@@ -9,7 +9,7 @@ const { invokeAnyContract } = require("../controllers/anyInvoke.controller");
 
 const nodes = require("../../signer-nodes/signer-nodes");
 const { nodeIdMapSig } = require("../../bls-nodes/bls-node-methods");
-const { UserAccount, TelegramLinking } = require("../models");
+const { UserAccount, EmailVerification } = require("../models");
 
 const router = express.Router();
 
@@ -83,6 +83,7 @@ async function saveEmailAfterInvoke(req, res, next) {
 						$set: {
 							email: {
 								address: req.pendingEmailLink.emailData.email.address,
+								verified: true,
 							},
 						},
 						$addToSet: { linkedAccounts: "email" },
@@ -101,7 +102,7 @@ async function saveEmailAfterInvoke(req, res, next) {
 }
 
 router.post(
-	"/telegram/link/confirm",
+	"/email/link/confirm",
 	requireAccessToken,
 	loadUserFromToken,
 	loadPendingEmailLink,

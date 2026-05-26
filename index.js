@@ -1035,7 +1035,6 @@ app.post("/init-add-email", async (req, res) => {
 	}
 
 	const { userId } = accessVerification;
-	// const userId = "jhfkjfkfjflkflkf";
 
 	const existing = await EmailVerification.findOne({
 		userId,
@@ -1044,7 +1043,7 @@ app.post("/init-add-email", async (req, res) => {
 
 	if (!existing) {
 		const alreadyVerified = await UserAccount.findOne({
-			"email.username": normalizedEmail,
+			"email.address": normalizedEmail,
 		}).lean();
 
 		if (alreadyVerified && alreadyVerified.userId !== userId) {
@@ -1181,7 +1180,7 @@ app.post("/verify-email", async (req, res) => {
 		walletContractId: wallet,
 		options: initData.options,
 		signAccess: initData.signAccess,
-		...telegramData,
+		...emailData,
 	});
 
 	await UserAccount.updateOne(
