@@ -21,15 +21,13 @@ router.get("/discord/callback", (req, res, next) => {
       });
 
       return res.redirect(
-        `${CLIENT_URL}/settings/connect?discord=failed&code=${encodeURIComponent(
+        `${CLIENT_URL}/settings?discord=failed&code=${encodeURIComponent(
           code
         )}&error=${encodeURIComponent(message)}`
       );
     }
 
-    return res.redirect(
-      `${CLIENT_URL}/settings/connect?discord=pending_onchain`
-    );
+    return res.redirect(`${CLIENT_URL}/settings?discord=pending_onchain`);
   })(req, res, next);
 });
 
@@ -39,17 +37,6 @@ router.get("/discord/link/options", (req, res) => {
   if (!pending) {
     return res.status(404).json({ error: "No pending Discord link" });
   }
-
-  // if (Date.now() > Number(pending.expiresAt)) {
-  //   return res.status(410).json({
-  //     error: "Pending Discord link expired",
-  //     debug: {
-  //       now: Date.now(),
-  //       expiresAt: pending.expiresAt,
-  //       diffMs: Number(pending.expiresAt) - Date.now(),
-  //     },
-  //   });
-  // }
 
   return res.json({
     options: pending.initData.options,

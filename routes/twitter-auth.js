@@ -21,15 +21,13 @@ router.get("/twitter/callback", (req, res, next) => {
       });
 
       return res.redirect(
-        `${CLIENT_URL}/settings/connect?twitter=failed&code=${encodeURIComponent(
+        `${CLIENT_URL}/settings?twitter=failed&code=${encodeURIComponent(
           code
         )}&error=${encodeURIComponent(message)}`
       );
     }
 
-    return res.redirect(
-      `${CLIENT_URL}/settings/connect?twitter=pending_onchain`
-    );
+    return res.redirect(`${CLIENT_URL}/settings?twitter=pending_onchain`);
   })(req, res, next);
 });
 

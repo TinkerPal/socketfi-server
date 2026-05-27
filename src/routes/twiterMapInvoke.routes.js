@@ -63,7 +63,16 @@ async function saveTwitterAfterInvoke(req, res, next) {
 
   res.json = async (data) => {
     try {
-      console.log("the data for binding", data);
+      console.dir(
+        {
+          id: req.pendingTwitterLink.twitterData.twitter.id,
+          username: req.pendingTwitterLink.twitterData.twitter.screenName,
+          name: req.pendingTwitterLink.twitterData.twitter.name,
+          profileImageUrl:
+            req.pendingTwitterLink.twitterData.twitter.profileImageUrl,
+        },
+        { depth: null }
+      );
       if (data?.data?.txHash && req.pendingTwitterLink) {
         await UserAccount.updateOne(
           { userId: req.pendingTwitterLink.userId },
@@ -71,7 +80,7 @@ async function saveTwitterAfterInvoke(req, res, next) {
             $set: {
               twitter: {
                 id: req.pendingTwitterLink.twitterData.twitter.id,
-                username: req.pendingTwitterLink.twitterData.twitter.username,
+                username: req.pendingTwitterLink.twitterData.twitter.screenName,
                 name: req.pendingTwitterLink.twitterData.twitter.name,
                 profileImageUrl:
                   req.pendingTwitterLink.twitterData.twitter.profileImageUrl,
