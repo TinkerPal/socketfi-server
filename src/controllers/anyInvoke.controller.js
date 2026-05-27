@@ -22,7 +22,6 @@ async function invokeAnyContract(req, res, next) {
       validatorSigs,
     } = req.invoke;
 
-    console.log("the req invoke are", req.invoke);
     const { signature, signed } = req.passkey;
 
     const sigObject = xdr.ScVal.scvMap([
